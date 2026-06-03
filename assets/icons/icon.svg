@@ -1,0 +1,25 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="76" y1="58" x2="440" y2="454" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A66D9"/>
+      <stop offset="0.52" stop-color="#0C4FB6"/>
+      <stop offset="1" stop-color="#13B7C9"/>
+    </linearGradient>
+    <linearGradient id="card" x1="118" y1="126" x2="388" y2="378" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FCFF" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#D9EEFF" stop-opacity="0.88"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="120" fill="url(#bg)"/>
+  <circle cx="396" cy="126" r="44" fill="#6ED9E3" fill-opacity="0.35"/>
+  <circle cx="120" cy="380" r="66" fill="#83C8FF" fill-opacity="0.18"/>
+  <rect x="112" y="104" width="288" height="304" rx="42" fill="url(#card)"/>
+  <rect x="144" y="146" width="224" height="58" rx="22" fill="#0B4EA7" fill-opacity="0.92"/>
+  <rect x="144" y="232" width="102" height="102" rx="28" fill="#0A66D9"/>
+  <rect x="266" y="232" width="102" height="24" rx="12" fill="#80C8FF"/>
+  <rect x="266" y="274" width="78" height="24" rx="12" fill="#B0E7F1"/>
+  <rect x="266" y="316" width="92" height="24" rx="12" fill="#D0ECFF"/>
+  <path d="M170 280L194 304L222 264" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M193 165H319" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <path d="M185 373H327" stroke="#0C5BBC" stroke-width="20" stroke-linecap="round" opacity="0.72"/>
+</svg>

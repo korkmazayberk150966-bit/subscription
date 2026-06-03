@@ -1,0 +1,18 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="132" fill="#0B2E68"/>
+  <rect x="50" y="50" width="412" height="412" rx="116" fill="url(#maskGradient)"/>
+  <rect x="136" y="124" width="240" height="264" rx="44" fill="#EEF7FF"/>
+  <rect x="166" y="160" width="180" height="48" rx="20" fill="#0A66D9"/>
+  <rect x="166" y="234" width="86" height="86" rx="24" fill="#13B7C9"/>
+  <path d="M185 278L204 297L232 255" stroke="white" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="270" y="236" width="78" height="20" rx="10" fill="#65B9FF"/>
+  <rect x="270" y="272" width="62" height="20" rx="10" fill="#97D9F4"/>
+  <rect x="270" y="308" width="74" height="20" rx="10" fill="#C4E8FF"/>
+  <rect x="182" y="348" width="148" height="18" rx="9" fill="#0A66D9" fill-opacity="0.7"/>
+  <defs>
+    <linearGradient id="maskGradient" x1="74" y1="74" x2="430" y2="438" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A66D9"/>
+      <stop offset="1" stop-color="#13B7C9"/>
+    </linearGradient>
+  </defs>
+</svg>
