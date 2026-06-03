@@ -1,8 +1,10 @@
 {
   "name": "Akçe",
   "short_name": "Akçe",
+  "id": "/subscription/",
   "description": "Kisisel abonelik ve maliyet takip uygulamasi Akçe",
   "start_url": "./",
+  "scope": "/subscription/",
   "display": "standalone",
   "background_color": "#081628",
   "theme_color": "#0a3d91",

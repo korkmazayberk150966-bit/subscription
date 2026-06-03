@@ -99,8 +99,41 @@ button {
   position: sticky;
   top: 0;
   z-index: 40;
-  padding: 2px 2px 16px;
-  background: linear-gradient(180deg, var(--bg) 56%, rgba(0, 0, 0, 0));
+  padding: 6px 2px 18px;
+  background: linear-gradient(180deg, rgba(244, 248, 254, 0.96) 62%, rgba(244, 248, 254, 0));
+  backdrop-filter: blur(10px);
+}
+
+.app-header-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.app-header-row {
+  align-items: flex-end;
+}
+
+.icon-ghost {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 16px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.icon-ghost span {
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  display: block;
+  margin: 1px 0;
 }
 
 .app-header-row,
@@ -193,8 +226,9 @@ label span {
   margin: 4px 0 0;
   font-family: var(--font-serif);
   font-weight: 700;
-  font-size: 1.65rem;
-  letter-spacing: -0.04em;
+  font-size: clamp(2rem, 5.4vw, 2.55rem);
+  line-height: 1.02;
+  letter-spacing: -0.055em;
 }
 
 .app-header-actions,
@@ -322,6 +356,129 @@ label span {
   padding: 18px;
 }
 
+.native-toolbar {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+}
+
+.segmented-control {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  padding: 4px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(10, 102, 217, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  scrollbar-width: none;
+}
+
+.segmented-control::-webkit-scrollbar {
+  display: none;
+}
+
+.segment-chip {
+  min-height: 40px;
+  border: 0;
+  border-radius: 18px;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 0.88rem;
+  font-weight: 700;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.segment-chip.is-active {
+  background: linear-gradient(135deg, rgba(10, 102, 217, 0.14), rgba(19, 183, 201, 0.16));
+  color: var(--primary-strong);
+  box-shadow: 0 10px 22px rgba(10, 102, 217, 0.12);
+}
+
+.search-sort-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.search-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  min-height: 46px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(10, 102, 217, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.search-icon {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.search-field input {
+  min-height: 40px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-field input:focus {
+  transform: none;
+}
+
+.native-hidden-control {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+}
+
+.picker-trigger {
+  width: 100%;
+  border: 1px solid rgba(10, 102, 217, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.picker-trigger span {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.picker-trigger strong {
+  color: var(--primary);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.form-segmented,
+.compact-segmented,
+.analytics-segmented {
+  margin-top: 2px;
+}
+
 .subpanel {
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -388,6 +545,37 @@ label span {
   color: var(--primary);
   font-size: 1.2rem;
   font-weight: 700;
+}
+
+.settings-brand-panel {
+  padding: 10px;
+  background:
+    linear-gradient(135deg, rgba(10, 102, 217, 0.08), rgba(19, 183, 201, 0.08)),
+    var(--surface);
+}
+
+.settings-brand-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px;
+}
+
+.settings-brand-mark {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 24px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .alert-item,
@@ -488,17 +676,26 @@ label span {
 
 .cashflow-calendar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .calendar-day {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 18px;
+  gap: 6px;
+  min-height: 88px;
+  padding: 10px 8px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.66);
   border: 1px solid rgba(11, 72, 146, 0.06);
+}
+
+.calendar-day strong {
+  font-size: 0.82rem;
+}
+
+.calendar-day small {
+  line-height: 1.2;
 }
 
 .calendar-day.is-medium {
@@ -518,10 +715,10 @@ label span {
 
 .calendar-chip {
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 3px 7px;
   background: var(--primary-soft);
   color: var(--primary);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
 }
 
 .calendar-chip-trial {
@@ -589,23 +786,31 @@ label span {
 
 .wrapped-summary {
   grid-auto-flow: column;
-  grid-auto-columns: minmax(220px, 1fr);
+  grid-auto-columns: 86%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   padding-bottom: 4px;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
 }
 
 .wrapped-card {
   scroll-snap-align: start;
-  min-height: 160px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.26), transparent 30%),
+    linear-gradient(180deg, rgba(6, 47, 102, 0.06), rgba(10, 102, 217, 0.22)),
+    rgba(255, 255, 255, 0.82);
 }
 
 .wrapped-card strong {
   display: block;
   margin-top: 10px;
-  font-size: 1.2rem;
+  font-size: clamp(1.4rem, 5vw, 2rem);
   font-family: var(--font-serif);
+  line-height: 1.05;
 }
 
 .audit-actions {
@@ -642,6 +847,45 @@ select:focus,
 textarea:focus {
   border-color: rgba(10, 102, 217, 0.34);
   transform: translateY(-1px);
+}
+
+textarea {
+  resize: vertical;
+}
+
+.picker-sheet {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+.picker-options {
+  display: grid;
+  gap: 10px;
+}
+
+.picker-option {
+  min-height: 58px;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.picker-option strong {
+  color: var(--primary);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.picker-option.is-active {
+  background: linear-gradient(135deg, rgba(10, 102, 217, 0.12), rgba(19, 183, 201, 0.12));
 }
 
 .settings-grid,
@@ -808,6 +1052,12 @@ textarea:focus {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 4px;
+  border-top: 1px solid rgba(10, 102, 217, 0.06);
+}
+
+.group-grid.hidden {
+  display: none;
 }
 
 .subscription-card {
@@ -825,6 +1075,10 @@ textarea:focus {
 .subscription-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+.subscription-card:active {
+  transform: scale(0.992);
 }
 
 .subscription-title-wrap {
@@ -864,6 +1118,7 @@ textarea:focus {
   border-radius: 999px;
   font-size: 0.82rem;
   background: var(--primary-soft);
+  white-space: nowrap;
 }
 
 .subscription-price-line {
@@ -1008,6 +1263,10 @@ textarea:focus {
   grid-column: 1 / -1;
 }
 
+.picker-dialog {
+  max-height: min(72dvh, 620px);
+}
+
 .bottom-nav {
   position: fixed;
   left: 50%;
@@ -1038,11 +1297,12 @@ textarea:focus {
   padding: 8px 6px;
   font-size: 0.8rem;
   font-weight: 700;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
 .tab-button.is-active {
   color: var(--primary);
-  background: var(--primary-soft);
+  background: linear-gradient(135deg, rgba(10, 102, 217, 0.13), rgba(19, 183, 201, 0.15));
 }
 
 .tab-icon {
@@ -1098,6 +1358,13 @@ textarea:focus {
 
 .dialog-form.narrow {
   max-width: unset;
+}
+
+.dialog-actions {
+  position: sticky;
+  bottom: 0;
+  padding-top: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(250, 252, 255, 0.94) 28%);
 }
 
 .onboarding-shell {
@@ -1218,9 +1485,22 @@ textarea:focus {
   .group-grid,
   .summary-card-list,
   .subscription-stats,
-  .inline-filters,
-  .cashflow-calendar {
+  .inline-filters {
     grid-template-columns: 1fr;
+  }
+
+  .cashflow-calendar {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .calendar-day {
+    min-height: 82px;
+    padding: 8px 6px;
+  }
+
+  .calendar-chip {
+    padding-inline: 6px;
   }
 
   .wrapped-summary {

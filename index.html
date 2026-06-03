@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a3d91" />
     <meta name="description" content="Offline çalışan kişisel abonelik ve maliyet takip uygulaması." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Akçe" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="assets/icons/icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
@@ -20,15 +24,14 @@
   <body>
     <div class="app-shell">
       <header class="app-header">
-        <div class="app-header-row">
-          <div class="app-brand">
-            <div class="brand-mark"><img src="assets/icons/akce-source-logo.png" alt="Akçe logosu" /></div>
-            <div>
-              <p id="appHeaderMeta" class="app-header-meta">Bugünün özeti</p>
-              <h1 id="appHeaderTitle" class="app-header-title">Özet</h1>
-            </div>
+        <div class="app-header-stack">
+          <p id="appHeaderMeta" class="app-header-meta">Bugünün özeti</p>
+          <div class="app-header-row">
+            <h1 id="appHeaderTitle" class="app-header-title">Özet</h1>
+            <button id="headerUtilityBtn" class="icon-ghost hidden" type="button" aria-label="Ekran işlemleri">
+              <span></span><span></span><span></span>
+            </button>
           </div>
-          <div class="app-header-actions"></div>
         </div>
       </header>
 
@@ -145,32 +148,35 @@
                 <h2>Abonelikler</h2>
                 <p>Tüm kayıtların burada</p>
               </div>
-              <div class="inline-filters">
-                <label>
-                  <span>Durum</span>
-                  <select id="statusFilter">
-                    <option value="all">Tümü</option>
-                    <option value="active">Aktif</option>
-                    <option value="trial">Deneme</option>
-                    <option value="paused">Duraklatıldı</option>
-                    <option value="cancelled">İptal Edildi</option>
-                    <option value="completed">Tamamlandı</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Ara</span>
-                  <input id="searchInput" type="search" placeholder="Netflix, iCloud..." />
-                </label>
-                <label>
-                  <span>Sırala</span>
-                  <select id="sortFilter">
-                    <option value="name">Ada göre</option>
-                    <option value="cost-desc">En pahalı</option>
-                    <option value="next-payment">Sonraki ödeme</option>
-                    <option value="category">Kategori</option>
-                  </select>
-                </label>
+              <div class="native-toolbar">
+                <div class="segmented-control" id="statusSegmented" role="tablist" aria-label="Durum filtresi">
+                  <button type="button" class="segment-chip is-active" data-status-value="all">Tümü</button>
+                  <button type="button" class="segment-chip" data-status-value="active">Aktif</button>
+                  <button type="button" class="segment-chip" data-status-value="trial">Deneme</button>
+                  <button type="button" class="segment-chip" data-status-value="cancelled">İptal</button>
+                </div>
+                <div class="search-sort-row">
+                  <label class="search-field">
+                    <span class="search-icon">⌕</span>
+                    <input id="searchInput" type="search" placeholder="Ara" />
+                  </label>
+                  <button id="sortPickerBtn" class="icon-pill" type="button" aria-label="Sırala">⇅</button>
+                </div>
               </div>
+              <select id="statusFilter" class="native-hidden-control">
+                <option value="all">Tümü</option>
+                <option value="active">Aktif</option>
+                <option value="trial">Deneme</option>
+                <option value="paused">Duraklatıldı</option>
+                <option value="cancelled">İptal Edildi</option>
+                <option value="completed">Tamamlandı</option>
+              </select>
+              <select id="sortFilter" class="native-hidden-control">
+                <option value="name">Ada göre</option>
+                <option value="cost-desc">En pahalı</option>
+                <option value="next-payment">Sonraki ödeme</option>
+                <option value="category">Kategori</option>
+              </select>
             </div>
             <div id="subscriptionsList" class="subscription-list empty-state"></div>
           </section>
@@ -185,8 +191,13 @@
                 <p>Özet, dağılım ve tasarruf fırsatları</p>
               </div>
             </div>
+            <div class="segmented-control analytics-segmented" id="analyticsSegmented" role="tablist" aria-label="Analiz görünümü">
+              <button type="button" class="segment-chip is-active" data-analytics-view="general">Genel</button>
+              <button type="button" class="segment-chip" data-analytics-view="trend">Trend</button>
+              <button type="button" class="segment-chip" data-analytics-view="categories">Kategoriler</button>
+            </div>
             <div class="overview-grid">
-              <article class="subpanel chart-card">
+              <article class="subpanel chart-card" data-analytics-section="general categories">
                 <div class="subpanel-header">
                   <h3>Kategori Dağılımı</h3>
                   <span id="categoryLegendSummary">Veri yok</span>
@@ -195,7 +206,7 @@
                 <div id="categoryLegend" class="legend-list"></div>
               </article>
 
-              <article class="subpanel chart-card">
+              <article class="subpanel chart-card" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>Aylık Trend</h3>
                   <span>Son 6 ay</span>
@@ -203,7 +214,7 @@
                 <canvas id="trendChart" width="320" height="220"></canvas>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>En Pahalı Abonelikler</h3>
                   <span>TL normalize</span>
@@ -211,7 +222,7 @@
                 <div id="expensiveList" class="rank-list empty-state"></div>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>İptal Adayları</h3>
                   <span>Az kullanım + yüksek maliyet</span>
@@ -219,7 +230,7 @@
                 <div id="cancellationList" class="rank-list empty-state"></div>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>Yıl Sonu Özeti</h3>
                   <span id="yearSummaryLabel">Bu yıl</span>
@@ -227,7 +238,7 @@
                 <div id="yearSummary" class="summary-card-list"></div>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel" data-analytics-section="general categories">
                 <div class="subpanel-header">
                   <h3>Aktif Denemeler</h3>
                   <span>Ücretsiz denemeler</span>
@@ -235,7 +246,7 @@
                 <div id="trialSummary" class="summary-card-list"></div>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>Arşiv Tasarrufu</h3>
                   <span>İptal edilenler</span>
@@ -243,7 +254,7 @@
                 <div id="archiveSummary" class="summary-card-list"></div>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel wrapped-stage" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>Yıl Sonu Wrapped</h3>
                   <span>Kaydırmalı özet</span>
@@ -251,7 +262,7 @@
                 <div id="wrappedSummary" class="wrapped-summary"></div>
               </article>
 
-              <article class="subpanel">
+              <article class="subpanel" data-analytics-section="general trend">
                 <div class="subpanel-header">
                   <h3>Çeyreklik Denetim</h3>
                   <span id="auditStatus">Takip ediliyor</span>
@@ -275,6 +286,18 @@
         </section>
 
         <section class="screen" data-tab-panel="settings">
+          <section class="panel settings-brand-panel">
+            <div class="settings-brand-card">
+              <div class="settings-brand-mark">
+                <img src="assets/icons/akce-source-logo.png" alt="Akçe logosu" />
+              </div>
+              <div>
+                <p class="section-kicker">Akçe</p>
+                <h2>Ayarlar</h2>
+                <p>Uygulama tercihleri, bildirimler ve yedekleme</p>
+              </div>
+            </div>
+          </section>
           <section class="panel">
             <div class="panel-header">
               <div>
@@ -322,10 +345,14 @@
               </label>
               <label>
                 <span>Denetim hatırlatması (ay)</span>
-                <select name="auditReminderMonths">
+                <select name="auditReminderMonths" class="native-hidden-control">
                   <option value="3">3 ay</option>
                   <option value="6">6 ay</option>
                 </select>
+                <button class="picker-trigger" type="button" data-picker-target="auditReminderMonths" data-picker-title="Denetim hatırlatması">
+                  <span>3 ay</span>
+                  <strong>Seç</strong>
+                </button>
               </label>
               <label class="checkbox-row">
                 <input name="notificationsEnabled" type="checkbox" />
@@ -391,18 +418,26 @@
         </div>
 
         <div class="catalog-picker">
-          <label>
+          <label class="full-width">
             <span>Kayıt tipi</span>
-            <select id="recordTypeSelect" name="recordType">
+            <div class="segmented-control form-segmented" id="recordTypeSegmented">
+              <button type="button" class="segment-chip is-active" data-record-type="subscription">Abonelik</button>
+              <button type="button" class="segment-chip" data-record-type="installment">Taksit</button>
+            </div>
+            <select id="recordTypeSelect" name="recordType" class="native-hidden-control">
               <option value="subscription">Abonelik</option>
               <option value="installment">Taksitli alışveriş</option>
             </select>
           </label>
           <label>
             <span>Servis kataloğu</span>
-            <select id="catalogSelect">
+            <select id="catalogSelect" class="native-hidden-control">
               <option value="">Elle doldur</option>
             </select>
+            <button id="catalogPickerBtn" class="picker-trigger" type="button" data-picker-target="catalogSelect" data-picker-title="Servis seç">
+              <span>Elle doldur</span>
+              <strong>Seç</strong>
+            </button>
           </label>
         </div>
 
@@ -427,20 +462,28 @@
           </label>
           <label>
             <span>Para birimi</span>
-            <select name="currency">
+            <select name="currency" class="native-hidden-control">
               <option value="TRY">TL</option>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
             </select>
+            <button class="picker-trigger" type="button" data-picker-target="currency" data-picker-title="Para birimi">
+              <span>TL</span>
+              <strong>Seç</strong>
+            </button>
           </label>
           <label>
             <span>Faturalama döngüsü</span>
-            <select name="billingCycle">
+            <select name="billingCycle" class="native-hidden-control">
               <option value="weekly">Haftalık</option>
               <option value="monthly">Aylık</option>
               <option value="quarterly">3 Aylık</option>
               <option value="yearly">Yıllık</option>
             </select>
+            <button class="picker-trigger" type="button" data-picker-target="billingCycle" data-picker-title="Faturalama döngüsü">
+              <span>Aylık</span>
+              <strong>Seç</strong>
+            </button>
           </label>
           <label>
             <span>Sonraki ödeme tarihi</span>
@@ -460,12 +503,18 @@
           </label>
           <label>
             <span>Durum</span>
-            <select name="status">
+            <select name="status" class="native-hidden-control">
               <option value="active">Aktif</option>
               <option value="trial">Deneme Süresi</option>
               <option value="paused">Duraklatıldı</option>
               <option value="cancelled">İptal Edildi</option>
             </select>
+            <div class="segmented-control compact-segmented" id="formStatusSegmented">
+              <button type="button" class="segment-chip is-active" data-form-status="active">Aktif</button>
+              <button type="button" class="segment-chip" data-form-status="trial">Deneme</button>
+              <button type="button" class="segment-chip" data-form-status="paused">Duraklat</button>
+              <button type="button" class="segment-chip" data-form-status="cancelled">İptal</button>
+            </div>
           </label>
           <label>
             <span>İkon</span>
@@ -485,12 +534,16 @@
           </label>
           <label>
             <span>Kullanım sıklığı</span>
-            <select name="usageFrequency">
+            <select name="usageFrequency" class="native-hidden-control">
               <option value="high">Sık</option>
               <option value="medium">Ara sıra</option>
               <option value="low">Nadiren</option>
               <option value="unused">Neredeyse hiç</option>
             </select>
+            <button class="picker-trigger" type="button" data-picker-target="usageFrequency" data-picker-title="Kullanım sıklığı">
+              <span>Ara sıra</span>
+              <strong>Seç</strong>
+            </button>
           </label>
           <label class="checkbox-row">
             <input name="isPriceIncreased" type="checkbox" />
@@ -564,7 +617,11 @@
         <div class="form-grid">
           <label class="full-width">
             <span>Abonelik</span>
-            <select name="subscriptionId" required id="paymentSubscriptionSelect"></select>
+            <select name="subscriptionId" required id="paymentSubscriptionSelect" class="native-hidden-control"></select>
+            <button class="picker-trigger" type="button" data-picker-target="paymentSubscriptionSelect" data-picker-title="Kayıt seç">
+              <span>Kayıt seç</span>
+              <strong>Seç</strong>
+            </button>
           </label>
           <label>
             <span>Ödeme tarihi</span>
@@ -576,11 +633,15 @@
           </label>
           <label>
             <span>Para birimi</span>
-            <select name="currency">
+            <select name="currency" class="native-hidden-control">
               <option value="TRY">TL</option>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
             </select>
+            <button class="picker-trigger" type="button" data-picker-target="currency" data-picker-title="Ödeme para birimi">
+              <span>TL</span>
+              <strong>Seç</strong>
+            </button>
           </label>
           <label class="full-width">
             <span>Not</span>
@@ -613,6 +674,20 @@
           <button id="skipOnboardingBtn" class="ghost-button" type="button">Geç</button>
           <button id="nextOnboardingBtn" class="primary-button" type="button">Devam</button>
         </div>
+      </div>
+    </dialog>
+
+    <dialog id="pickerDialog" class="app-dialog picker-dialog">
+      <div class="dialog-form narrow picker-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Seçim</p>
+            <h2 id="pickerTitle">Seç</h2>
+          </div>
+          <button id="closePickerDialogBtn" class="icon-button" type="button" aria-label="Kapat">×</button>
+        </div>
+        <div id="pickerOptions" class="picker-options"></div>
       </div>
     </dialog>
 

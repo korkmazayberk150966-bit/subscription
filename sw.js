@@ -1,4 +1,4 @@
-const CACHE_NAME = "abonelik-takibi-v7";
+const CACHE_NAME = "abonelik-takibi-v8";
 const APP_SHELL = [
   "./",
   "./index.html",

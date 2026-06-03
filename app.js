@@ -107,6 +107,7 @@ const dom = {
   heroTitle: $("#heroTitle"),
   appHeaderTitle: $("#appHeaderTitle"),
   appHeaderMeta: $("#appHeaderMeta"),
+  headerUtilityBtn: $("#headerUtilityBtn"),
   alertBadge: $("#alertBadge"),
   alertsList: $("#alertsList"),
   timelineList: $("#timelineList"),
@@ -137,9 +138,12 @@ const dom = {
   importInput: $("#importInput"),
   statusFilter: $("#statusFilter"),
   sortFilter: $("#sortFilter"),
+  statusSegmented: $("#statusSegmented"),
+  analyticsSegmented: $("#analyticsSegmented"),
   searchInput: $("#searchInput"),
   monthlyViewBtn: $("#monthlyViewBtn"),
   yearlyViewBtn: $("#yearlyViewBtn"),
+  sortPickerBtn: $("#sortPickerBtn"),
   fabAddBtn: $("#fabAddBtn"),
   quickLogBtn: $("#quickLogBtn"),
   installBanner: $("#installBanner"),
@@ -152,6 +156,7 @@ const dom = {
   archiveBtn: $("#archiveBtn"),
   recordTypeSelect: $("#recordTypeSelect"),
   catalogSelect: $("#catalogSelect"),
+  catalogPickerBtn: $("#catalogPickerBtn"),
   subscriptionFields: $("#subscriptionFields"),
   installmentFields: $("#installmentFields"),
   paymentDialog: $("#paymentDialog"),
@@ -172,6 +177,12 @@ const dom = {
   onboardingIcon: $("#onboardingIcon"),
   nextOnboardingBtn: $("#nextOnboardingBtn"),
   skipOnboardingBtn: $("#skipOnboardingBtn"),
+  pickerDialog: $("#pickerDialog"),
+  pickerTitle: $("#pickerTitle"),
+  pickerOptions: $("#pickerOptions"),
+  closePickerDialogBtn: $("#closePickerDialogBtn"),
+  pickerTriggers: Array.from(document.querySelectorAll(".picker-trigger")),
+  analyticsSections: Array.from(document.querySelectorAll("[data-analytics-section]")),
   tabButtons: Array.from(document.querySelectorAll(".tab-button")),
   tabPanels: Array.from(document.querySelectorAll("[data-tab-panel]"))
 };
@@ -189,6 +200,8 @@ async function init() {
   populatePaymentSubscriptions();
   renderAll();
   setActiveTab(state.activeTab);
+  handleAnalyticsSegmentClick({ target: document.querySelector("[data-analytics-view].is-active") });
+  syncNativeControls();
   maybeShowInstallHint();
   await registerServiceWorker();
   maybeSendNotifications();
@@ -347,6 +360,9 @@ function bindEvents() {
   dom.statusFilter.addEventListener("change", renderRecords);
   dom.sortFilter.addEventListener("change", renderRecords);
   dom.searchInput.addEventListener("input", renderRecords);
+  dom.statusSegmented.addEventListener("click", handleStatusSegmentClick);
+  dom.analyticsSegmented.addEventListener("click", handleAnalyticsSegmentClick);
+  dom.sortPickerBtn.addEventListener("click", () => openPickerFromSelect(dom.sortFilter, "Sırala"));
   dom.monthlyViewBtn.addEventListener("click", () => setDisplayMode("monthly"));
   dom.yearlyViewBtn.addEventListener("click", () => setDisplayMode("yearly"));
   dom.catalogSelect.addEventListener("change", handleCatalogSelection);
@@ -357,7 +373,17 @@ function bindEvents() {
   dom.tabButtons.forEach((button) => {
     button.addEventListener("click", () => setActiveTab(button.dataset.tabTarget));
   });
-  [dom.subscriptionDialog, dom.paymentDialog, dom.onboardingDialog].forEach((dialog) => {
+  dom.closePickerDialogBtn.addEventListener("click", () => dom.pickerDialog.close());
+  dom.pickerTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", () => openPickerByTarget(trigger.dataset.pickerTarget, trigger.dataset.pickerTitle));
+  });
+  document.querySelectorAll("[data-form-status]").forEach((button) => {
+    button.addEventListener("click", () => setFormStatus(button.dataset.formStatus));
+  });
+  document.querySelectorAll("[data-record-type]").forEach((button) => {
+    button.addEventListener("click", () => setRecordType(button.dataset.recordType));
+  });
+  [dom.subscriptionDialog, dom.paymentDialog, dom.onboardingDialog, dom.pickerDialog].forEach((dialog) => {
     dialog.addEventListener("close", syncSheetState);
     dialog.addEventListener("cancel", syncSheetState);
   });
@@ -466,6 +492,7 @@ function populateSettingsForm() {
       field.value = value;
     }
   });
+  syncNativeControls();
   updateRatesMeta();
 }
 
@@ -485,6 +512,7 @@ function resetRecordForm() {
   setFieldValue("installmentCategory", "Taksitli Alışveriş");
   dom.catalogSelect.value = "";
   syncFormMode();
+  syncNativeControls();
   updateDetailPreview();
 }
 
@@ -513,6 +541,7 @@ function openRecordDialog(record = null) {
   }
 
   syncFormMode();
+  syncNativeControls();
   updateDetailPreview();
   dom.subscriptionDialog.showModal();
   syncSheetState();
@@ -528,6 +557,7 @@ function openPaymentDialog(recordId = null) {
   populatePaymentSubscriptions();
   setFieldValue("paidAt", todayIso(), dom.paymentForm);
   autoFillPaymentAmount();
+  syncNativeControls();
   dom.paymentDialog.showModal();
   syncSheetState();
 }
@@ -556,6 +586,7 @@ function setFieldValue(name, value, form = dom.subscriptionForm) {
   } else {
     field.value = value;
   }
+  syncNativeControls();
 }
 
 function handleFormLiveUpdates(event) {
@@ -585,6 +616,7 @@ function syncFormMode() {
   const installmentMode = dom.recordTypeSelect.value === "installment";
   dom.subscriptionFields.classList.toggle("hidden", installmentMode);
   dom.installmentFields.classList.toggle("hidden", !installmentMode);
+  syncNativeControls();
   updateDetailPreview();
 }
 
@@ -1719,6 +1751,7 @@ function updateHeaderForTab() {
 
   dom.appHeaderTitle.textContent = config.title;
   dom.appHeaderMeta.textContent = config.meta;
+  dom.headerUtilityBtn.classList.add("hidden");
 }
 
 function updateFabVisibility() {
@@ -1726,10 +1759,132 @@ function updateFabVisibility() {
   dom.fabAddBtn.classList.toggle("is-hidden", hidden);
 }
 
+function syncNativeControls() {
+  syncSegmentedButtons();
+  syncPickerTriggerLabels();
+}
+
+function syncSegmentedButtons() {
+  document.querySelectorAll("[data-status-value]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.statusValue === dom.statusFilter.value);
+  });
+  document.querySelectorAll("[data-record-type]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.recordType === dom.recordTypeSelect.value);
+  });
+  document.querySelectorAll("[data-form-status]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.formStatus === getFieldValue("status"));
+  });
+}
+
+function syncPickerTriggerLabels() {
+  dom.pickerTriggers.forEach((trigger) => {
+    const target = resolvePickerTarget(trigger.dataset.pickerTarget);
+    if (!target) {
+      return;
+    }
+    const labelNode = trigger.querySelector("span");
+    if (!labelNode) {
+      return;
+    }
+    if (target.tagName === "SELECT") {
+      const option = target.selectedOptions?.[0];
+      labelNode.textContent = option ? option.textContent : "Seç";
+    } else {
+      labelNode.textContent = target.value || "Seç";
+    }
+  });
+}
+
+function handleStatusSegmentClick(event) {
+  const button = event.target.closest("[data-status-value]");
+  if (!button) {
+    return;
+  }
+  dom.statusFilter.value = button.dataset.statusValue;
+  syncSegmentedButtons();
+  renderRecords();
+}
+
+function handleAnalyticsSegmentClick(event) {
+  const button = event.target.closest("[data-analytics-view]");
+  if (!button) {
+    return;
+  }
+  const view = button.dataset.analyticsView;
+  document.querySelectorAll("[data-analytics-view]").forEach((node) => {
+    node.classList.toggle("is-active", node === button);
+  });
+  dom.analyticsSections.forEach((section) => {
+    const visible = section.dataset.analyticsSection.split(" ").includes(view);
+    section.classList.toggle("hidden", !visible);
+  });
+}
+
+function setFormStatus(status) {
+  setFieldValue("status", status);
+  syncSegmentedButtons();
+  updateDetailPreview();
+}
+
+function setRecordType(type) {
+  dom.recordTypeSelect.value = type;
+  syncFormMode();
+}
+
+function resolvePickerTarget(targetName) {
+  if (targetName === "catalogSelect") {
+    return dom.catalogSelect;
+  }
+  if (targetName === "paymentSubscriptionSelect") {
+    return dom.paymentSubscriptionSelect;
+  }
+  if (targetName === "auditReminderMonths") {
+    return dom.settingsForm.elements.namedItem("auditReminderMonths");
+  }
+  return dom.subscriptionForm.elements.namedItem(targetName) || dom.paymentForm.elements.namedItem(targetName) || document.getElementById(targetName);
+}
+
+function openPickerByTarget(targetName, title) {
+  const target = resolvePickerTarget(targetName);
+  if (!target || target.tagName !== "SELECT") {
+    return;
+  }
+  openPickerFromSelect(target, title || "Seç");
+}
+
+function openPickerFromSelect(selectElement, title) {
+  dom.pickerTitle.textContent = title;
+  dom.pickerOptions.innerHTML = "";
+  Array.from(selectElement.options).forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `picker-option${option.selected ? " is-active" : ""}`;
+    button.innerHTML = `<span>${escapeHtml(option.textContent)}</span><strong>${option.selected ? "Seçili" : ""}</strong>`;
+    button.addEventListener("click", () => {
+      selectElement.value = option.value;
+      selectElement.dispatchEvent(new Event("change", { bubbles: true }));
+      syncNativeControls();
+      dom.pickerDialog.close();
+      if (selectElement === dom.paymentSubscriptionSelect) {
+        autoFillPaymentAmount();
+      }
+      if (selectElement === dom.recordTypeSelect) {
+        syncFormMode();
+      }
+    });
+    dom.pickerOptions.append(button);
+  });
+  dom.pickerDialog.showModal();
+  syncSheetState();
+}
+
 function syncSheetState() {
   document.body.classList.toggle(
     "sheet-open",
-    Boolean(dom.subscriptionDialog?.open) || Boolean(dom.paymentDialog?.open) || Boolean(dom.onboardingDialog?.open)
+    Boolean(dom.subscriptionDialog?.open) ||
+      Boolean(dom.paymentDialog?.open) ||
+      Boolean(dom.onboardingDialog?.open) ||
+      Boolean(dom.pickerDialog?.open)
   );
 }
 
