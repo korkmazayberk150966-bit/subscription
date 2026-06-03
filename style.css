@@ -218,6 +218,8 @@ label span {
 .screen {
   animation: screenIn 220ms ease;
   -webkit-overflow-scrolling: touch;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .screen:not(.is-active) {
@@ -402,11 +404,14 @@ label span {
 
 .overview-grid {
   grid-template-columns: 1fr;
+  min-width: 0;
 }
 
 .chart-card canvas {
+  display: block;
   width: 100%;
   height: auto;
+  max-width: 100%;
   margin-top: 12px;
   border-radius: 20px;
   background:
@@ -416,6 +421,7 @@ label span {
 
 .legend-list {
   margin-top: 8px;
+  min-width: 0;
 }
 
 .legend-item .legend-item {
@@ -469,6 +475,7 @@ label span {
 .timeline-list {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .cashflow-calendar {
@@ -522,6 +529,7 @@ label span {
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(11, 72, 146, 0.08);
+  min-width: 0;
 }
 
 .timeline-dot {
@@ -568,12 +576,14 @@ label span {
 .audit-list {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .wrapped-summary {
   grid-auto-flow: column;
   grid-auto-columns: minmax(220px, 1fr);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding-bottom: 4px;
   scroll-snap-type: x proximity;
 }
@@ -783,6 +793,7 @@ textarea:focus {
 
 .subscription-list {
   grid-template-columns: 1fr;
+  min-width: 0;
 }
 
 .group-grid {
@@ -800,6 +811,7 @@ textarea:focus {
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.03)),
     var(--surface);
   transition: transform 200ms ease, box-shadow 200ms ease;
+  min-width: 0;
 }
 
 .subscription-card:hover {
@@ -954,6 +966,29 @@ textarea:focus {
 
 .summary-card-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.panel,
+.subpanel,
+.rank-list,
+.payment-list,
+.audit-item,
+.insight-card,
+.timeline-copy,
+.timeline-side,
+.legend-item,
+.rank-item,
+.payment-item {
+  min-width: 0;
+}
+
+.subpanel-header {
+  flex-wrap: wrap;
+}
+
+.subpanel-header > * {
+  min-width: 0;
 }
 
 .summary-item {
@@ -1177,6 +1212,24 @@ textarea:focus {
   .subscription-stats,
   .inline-filters,
   .cashflow-calendar {
+    grid-template-columns: 1fr;
+  }
+
+  .wrapped-summary {
+    grid-auto-columns: minmax(0, 86%);
+  }
+
+  .timeline-item {
+    grid-template-columns: 12px minmax(0, 1fr);
+  }
+
+  .timeline-side {
+    text-align: left;
+    grid-column: 2;
+  }
+
+  .audit-actions {
+    display: grid;
     grid-template-columns: 1fr;
   }
 
