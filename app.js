@@ -58,7 +58,8 @@ const state = {
   editingId: null,
   deferredPrompt: null,
   activePaymentSubscriptionId: null,
-  activeTab: "overview"
+  activeTab: "overview",
+  processingTrialDecision: false
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -70,6 +71,7 @@ const dom = {
   yearlyProjection: $("#yearlyProjection"),
   budgetStatus: $("#budgetStatus"),
   upcomingCount: $("#upcomingCount"),
+  monthlyTrialsCount: $("#monthlyTrialsCount"),
   appHeaderTitle: $("#appHeaderTitle"),
   appHeaderMeta: $("#appHeaderMeta"),
   alertBadge: $("#alertBadge"),
@@ -80,6 +82,7 @@ const dom = {
   cancellationList: $("#cancellationList"),
   yearSummaryLabel: $("#yearSummaryLabel"),
   yearSummary: $("#yearSummary"),
+  trialSummary: $("#trialSummary"),
   archiveSummary: $("#archiveSummary"),
   subscriptionsList: $("#subscriptionsList"),
   paymentsList: $("#paymentsList"),
@@ -138,6 +141,7 @@ async function init() {
   maybeShowInstallHint();
   await registerServiceWorker();
   maybeSendNotifications();
+  await maybeResolveExpiredTrials();
 }
 
 async function loadCatalog() {
@@ -508,11 +512,12 @@ function updateDetailPreview() {
   const priceLine = installmentMode
     ? buildInstallmentPreviewLine()
     : buildSubscriptionPreviewLine();
+  const status = getFieldValue("status");
 
   const logoSvg = createLogoDataUri({ label: monogram, color, title, subtitle: installmentMode ? "TAKSİT" : "ABONE" });
   dom.detailPreviewLogo.style.background = color;
   dom.detailPreviewLogo.innerHTML = `<img src="${logoSvg}" alt="" />`;
-  dom.detailPreviewType.textContent = installmentMode ? "Taksitli alışveriş" : "Abonelik";
+  dom.detailPreviewType.textContent = installmentMode ? "Taksitli alışveriş" : status === "trial" ? "Deneme aboneliği" : "Abonelik";
   dom.detailPreviewTitle.textContent = product ? `${title} · ${product}` : title;
   dom.detailPreviewPrice.textContent = priceLine;
 }
@@ -521,6 +526,13 @@ function buildSubscriptionPreviewLine() {
   const amount = Number(getFieldValue("price")) || 0;
   const currency = getFieldValue("currency") || "TRY";
   const cycle = CYCLE_LABELS[getFieldValue("billingCycle")] || "Aylık";
+  const status = getFieldValue("status");
+  const trialEndDate = getFieldValue("trialEndDate");
+  if (status === "trial") {
+    const previewTrial = getTrialState({ trialEndDate });
+    const suffix = amount ? ` · Sonrasında ${formatMoney(amount, currency)} · ${cycle}` : "";
+    return `Ücretsiz deneme · ${previewTrial.badge}${suffix}`;
+  }
   return amount ? `${formatMoney(amount, currency)} · ${cycle}` : "0 TL";
 }
 
@@ -612,13 +624,11 @@ async function handleRecordSubmit(event) {
   dom.subscriptionDialog.close();
   syncSheetState();
   showToast(existing ? "Kayıt güncellendi." : "Kayıt eklendi.");
+  await maybeResolveExpiredTrials();
 }
 
-async function handleArchiveCurrentRecord() {
-  if (!state.editingId) {
-    return;
-  }
-  const record = state.records.find((item) => item.id === state.editingId);
+async function archiveRecord(record, options = {}) {
+  const { toastMessage = "Kayıt arşive taşındı.", closeDialog = false } = options;
   if (!record) {
     return;
   }
@@ -636,9 +646,21 @@ async function handleArchiveCurrentRecord() {
   await loadState();
   populatePaymentSubscriptions();
   renderAll();
-  dom.subscriptionDialog.close();
-  syncSheetState();
-  showToast("Kayıt arşive taşındı.");
+  if (closeDialog) {
+    dom.subscriptionDialog.close();
+    syncSheetState();
+  }
+  if (toastMessage) {
+    showToast(toastMessage);
+  }
+}
+
+async function handleArchiveCurrentRecord() {
+  if (!state.editingId) {
+    return;
+  }
+  const record = state.records.find((item) => item.id === state.editingId);
+  await archiveRecord(record, { closeDialog: true });
 }
 
 async function handleDeleteRecord(record) {
@@ -815,6 +837,7 @@ function updateRatesMeta() {
 function renderOverview() {
   const activeSubscriptions = state.records.filter((item) => !isInstallment(item) && getRecordStatus(item) !== "cancelled");
   const activeInstallments = state.records.filter((item) => isInstallment(item) && getRecordStatus(item) !== "completed");
+  const activeTrials = state.records.filter((item) => isTrialRecord(item));
   const monthlySubscriptions = sum(activeSubscriptions.map((item) => calculateMonthlyTl(item)));
   const monthlyInstallments = sum(activeInstallments.map((item) => calculateMonthlyTl(item)));
   const monthlyTotal = monthlySubscriptions + monthlyInstallments;
@@ -827,15 +850,17 @@ function renderOverview() {
   dom.monthlyInstallmentsTotal.textContent = formatCurrency(monthlyInstallments);
   dom.yearlyProjection.textContent = formatCurrency(yearlyTotal);
   dom.upcomingCount.textContent = String(alerts.filter((item) => item.type !== "budget").length);
+  dom.monthlyTrialsCount.textContent = String(activeTrials.length);
   dom.budgetStatus.textContent = budgetTarget
     ? `${formatCurrency(monthlyTotal)} / ${formatCurrency(budgetTarget)}`
     : "Hedef yok";
 
   renderCategoryChart(state.records);
   renderTrendChart(state.records);
-  renderTopExpensive(state.records);
-  renderCancellationCandidates(activeSubscriptions);
+  renderTopExpensive(state.records.filter((item) => calculateAnnualTl(item) > 0));
+  renderCancellationCandidates(activeSubscriptions.filter((item) => !isTrialRecord(item)));
   renderYearSummary(yearlyTotal);
+  renderTrialSummary(activeTrials);
   renderArchiveSummary();
 }
 
@@ -913,6 +938,16 @@ function renderRecords() {
       installmentProgress.querySelector(".progress-value").textContent = `${progress.displayInstallment} / ${progress.totalInstallments}`;
       installmentProgress.querySelector(".progress-fill").style.width = `${progress.percentage}%`;
       installmentProgress.querySelector(".progress-label").textContent = progress.completed ? "Taksit tamamlandı" : "Taksit ilerlemesi";
+    } else if (isTrialRecord(record)) {
+      const trial = getTrialState(record);
+      installmentProgress.classList.remove("hidden");
+      installmentProgress.querySelector(".progress-value").textContent = trial.badge;
+      installmentProgress.querySelector(".progress-fill").style.width = `${trial.progressPercentage}%`;
+      installmentProgress.querySelector(".progress-label").textContent = trial.expired
+        ? "Deneme süresi doldu"
+        : "Deneme süresi";
+    } else {
+      installmentProgress.classList.add("hidden");
     }
 
     node.querySelector(".subscription-notes").textContent =
@@ -1024,6 +1059,50 @@ function renderYearSummary(yearlyProjectionTl) {
     .join("");
 }
 
+function renderTrialSummary(activeTrials) {
+  if (!dom.trialSummary) {
+    return;
+  }
+  if (!activeTrials.length) {
+    dom.trialSummary.innerHTML = `
+      <article class="summary-item summary-item-wide">
+        <small>Durum</small>
+        <strong>Aktif deneme yok</strong>
+      </article>
+    `;
+    return;
+  }
+
+  const nearestTrial = [...activeTrials]
+    .filter((record) => record.trialEndDate)
+    .sort((a, b) => daysBetween(todayIso(), a.trialEndDate) - daysBetween(todayIso(), b.trialEndDate))[0];
+
+  dom.trialSummary.innerHTML = [
+    { title: "Aktif deneme", value: `${activeTrials.length} kayıt` },
+    {
+      title: "En yakın bitiş",
+      value: nearestTrial ? `${nearestTrial.name} · ${formatDate(nearestTrial.trialEndDate)}` : "Tarih yok"
+    },
+    {
+      title: "Bugün bitiyor",
+      value: `${activeTrials.filter((record) => getTrialState(record).daysRemaining === 0).length} kayıt`
+    },
+    {
+      title: "Ücretli olursa aylık etki",
+      value: formatCurrency(sum(activeTrials.map((record) => convertToTl(record.price, record.currency))))
+    }
+  ]
+    .map(
+      (item) => `
+        <article class="summary-item">
+          <small>${item.title}</small>
+          <strong>${item.value}</strong>
+        </article>
+      `
+    )
+    .join("");
+}
+
 function renderArchiveSummary() {
   const totalSavings = sum(state.archives.map((item) => item.annualSavingsTl));
   const lastArchived = state.archives[0];
@@ -1111,6 +1190,31 @@ function buildAlerts() {
     if (status === "cancelled") {
       return;
     }
+    if (isTrialRecord(record) && record.trialEndDate) {
+      const trialDays = daysBetween(today, record.trialEndDate);
+      const reminderDays = new Set([Number(state.settings.trialReminderDays || 3), 3, 1, 0]);
+      if (trialDays >= 0 && reminderDays.has(trialDays)) {
+        alerts.push({
+          id: `trial-${record.id}-${record.trialEndDate}`,
+          type: "trial",
+          severity: "critical",
+          badge: `${trialDays} gün`,
+          title: `${record.name} deneme süresi bitiyor`,
+          message: `${record.name} aboneliğinin deneme süresi ${formatDate(record.trialEndDate)} tarihinde bitiyor — ücretli aboneliğe dönmeden karar ver.`
+        });
+      }
+      if (trialDays < 0) {
+        alerts.push({
+          id: `trial-ended-${record.id}-${record.trialEndDate}`,
+          type: "trial-ended",
+          severity: "critical",
+          badge: "Karar ver",
+          title: `${record.name} denemesi sona erdi`,
+          message: `${record.name} için deneme ${formatDate(record.trialEndDate)} tarihinde bitti. Ücretli devam mı, arşiv mi karar ver.`
+        });
+      }
+      return;
+    }
     const paymentDays = daysBetween(today, record.nextPaymentDate);
     const annualTl = calculateAnnualTl(record);
     if (paymentDays >= 0 && paymentDays <= state.settings.renewalReminderDays) {
@@ -1122,19 +1226,6 @@ function buildAlerts() {
         title: `${record.name} ödemesi yaklaşıyor`,
         message: `${formatDate(record.nextPaymentDate)} tarihinde ${formatMoney(record.price, record.currency)} yenileme var.`
       });
-    }
-    if (record.trialEndDate) {
-      const trialDays = daysBetween(today, record.trialEndDate);
-      if (trialDays >= 0 && trialDays <= state.settings.trialReminderDays) {
-        alerts.push({
-          id: `trial-${record.id}-${record.trialEndDate}`,
-          type: "trial",
-          severity: "critical",
-          badge: `${trialDays} gün`,
-          title: `${record.name} deneme süresi bitiyor`,
-          message: `Deneme süresi ${formatDate(record.trialEndDate)} tarihinde sona eriyor.`
-        });
-      }
     }
     if (annualTl >= state.settings.highAnnualThreshold && paymentDays >= 0 && paymentDays <= 30) {
       alerts.push({
@@ -1259,6 +1350,7 @@ async function importData(event) {
     populatePaymentSubscriptions();
     renderAll();
     applyTheme("light");
+    await maybeResolveExpiredTrials();
     showToast("Yedek başarıyla geri yüklendi.");
   } catch (error) {
     console.error(error);
@@ -1488,6 +1580,9 @@ function calculateMonthlyTl(record) {
     const progress = getInstallmentProgress(record);
     return progress.started && !progress.completed ? convertToTl(record.monthlyInstallment, record.currency) : 0;
   }
+  if (isTrialRecord(record)) {
+    return 0;
+  }
   const base = convertToTl(record.price, record.currency);
   switch (record.billingCycle) {
     case "weekly":
@@ -1507,6 +1602,9 @@ function calculateAnnualTl(record) {
     const progress = getInstallmentProgress(record);
     const futureInstallments = Math.max(0, Math.min(progress.remainingInstallments, 12));
     return futureInstallments * convertToTl(record.monthlyInstallment, record.currency);
+  }
+  if (isTrialRecord(record)) {
+    return 0;
   }
   return calculateMonthlyTl(record) * 12;
 }
@@ -1585,6 +1683,10 @@ function getRecordStatus(record) {
   return record.status || "active";
 }
 
+function isTrialRecord(record) {
+  return !isInstallment(record) && getRecordStatus(record) === "trial";
+}
+
 function getRecordTypeLabel(record) {
   return isInstallment(record) ? "Taksitli alışveriş" : "Abonelik";
 }
@@ -1605,6 +1707,14 @@ function getRecordPriceLine(record) {
     const progress = getInstallmentProgress(record);
     return `Aylık ${formatCurrency(record.monthlyInstallment)} · ${progress.displayInstallment}/${progress.totalInstallments} taksit`;
   }
+  if (isTrialRecord(record)) {
+    const trial = getTrialState(record);
+    const paidLine = `${formatMoney(record.price, record.currency)} · ${cycleSuffix(record.billingCycle)}`;
+    if (trial.expired) {
+      return "Deneme süresi doldu · Sonraki adımı seç";
+    }
+    return `Ücretsiz deneme · ${trial.badge} · Sonrasında ${paidLine}`;
+  }
   return `${formatMoney(record.price, record.currency)} · ${cycleSuffix(record.billingCycle)}`;
 }
 
@@ -1616,6 +1726,15 @@ function getRecordStats(record) {
       ["Aylık", formatCurrency(record.monthlyInstallment)],
       ["İlerleme", `${progress.displayInstallment} / ${progress.totalInstallments}`],
       ["Sonraki", progress.nextDueDate ? formatDate(progress.nextDueDate) : "Tamamlandı"]
+    ];
+  }
+  if (isTrialRecord(record)) {
+    const trial = getTrialState(record);
+    return [
+      ["Deneme", trial.badge],
+      ["Bitiş", record.trialEndDate ? formatDate(record.trialEndDate) : "Belirtilmedi"],
+      ["Ücretli olursa", formatMoney(record.price, record.currency)],
+      ["Toplama etkisi", "Şimdilik dahil değil"]
     ];
   }
   return [
@@ -1631,7 +1750,76 @@ function getDefaultNotes(record) {
     const progress = getInstallmentProgress(record);
     return `${record.merchant} alışverişi • ${progress.displayInstallment}/${progress.totalInstallments} taksit • Tamamlanınca otomatik düşer`;
   }
+  if (isTrialRecord(record)) {
+    const trial = getTrialState(record);
+    return `Deneme sürümü aktif • ${trial.expired ? "Süresi doldu, karar bekliyor" : `${trial.badge}`} • Ücretli olana kadar toplam maliyete dahil değil`;
+  }
   return `Kullanım: ${usageLabel(record.usageFrequency)} • Değer puanı: ${record.valueScore}/5 • İptalde yıllık tasarruf ${formatCurrency(calculateAnnualTl(record))}`;
+}
+
+function getTrialState(record, now = new Date()) {
+  if (!record.trialEndDate) {
+    return {
+      daysRemaining: null,
+      expired: false,
+      badge: "Tarih yok",
+      progressPercentage: 20
+    };
+  }
+  const daysRemaining = daysBetween(stripTime(now), record.trialEndDate);
+  const expired = daysRemaining < 0;
+  return {
+    daysRemaining,
+    expired,
+    badge: expired ? "Süresi doldu" : daysRemaining === 0 ? "Bugün bitiyor" : `${daysRemaining} gün kaldı`,
+    progressPercentage: expired ? 100 : Math.max(10, Math.min(96, ((Math.max(0, 14 - daysRemaining)) / 14) * 100))
+  };
+}
+
+async function maybeResolveExpiredTrials() {
+  if (state.processingTrialDecision) {
+    return;
+  }
+  const expiredTrials = state.records.filter((record) => isTrialRecord(record) && getTrialState(record).expired);
+  if (!expiredTrials.length) {
+    return;
+  }
+
+  state.processingTrialDecision = true;
+  try {
+    for (const record of expiredTrials) {
+      const keepPaid = window.confirm(
+        `${record.name} deneme süresi ${formatDate(record.trialEndDate)} tarihinde bitti.\n\nÜcretli aboneliğe geçildi mi?\n\nTamam = Evet, ücretli olarak devam et\nİptal = Hayır, arşive taşı`
+      );
+
+      if (keepPaid) {
+        const nextPaymentDate =
+          !record.nextPaymentDate || new Date(record.nextPaymentDate) < stripTime(new Date())
+            ? todayIso()
+            : record.nextPaymentDate;
+        await putRecord(
+          "subscriptions",
+          normalizeRecord({
+            ...record,
+            status: "active",
+            nextPaymentDate,
+            updatedAt: new Date().toISOString()
+          })
+        );
+        showToast(`${record.name} ücretli aboneliğe geçirildi.`);
+      } else {
+        await archiveRecord(record, {
+          toastMessage: `${record.name} deneme bitiminde arşive taşındı.`
+        });
+      }
+
+      await loadState();
+      populatePaymentSubscriptions();
+      renderAll();
+    }
+  } finally {
+    state.processingTrialDecision = false;
+  }
 }
 
 function renderRecordLogo(node, record) {

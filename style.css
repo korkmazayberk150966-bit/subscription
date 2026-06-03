@@ -781,6 +781,10 @@ textarea:focus {
   align-items: flex-start;
 }
 
+.summary-item-wide {
+  grid-column: 1 / -1;
+}
+
 .bottom-nav {
   position: fixed;
   left: 50%;
