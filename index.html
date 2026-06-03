@@ -108,6 +108,33 @@
             </div>
             <div id="timelineList" class="timeline-list empty-state"></div>
           </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">Nakit Akışı</p>
+                <h2>Ay İçi Dağılım</h2>
+                <p>Hangi günde ne kadar çıkacak hızlıca gör</p>
+              </div>
+            </div>
+            <div id="next7DaysSummary" class="summary-card-list"></div>
+            <div id="cashflowCalendar" class="cashflow-calendar empty-state"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">Kıyas</p>
+                <h2>Günlük Hayat Karşılığı</h2>
+                <p>Toplam maliyetin somut karşılığını gör</p>
+              </div>
+            </div>
+            <div id="comparisonSummary" class="summary-card-list"></div>
+            <article class="insight-card">
+              <strong id="trendNarrativeTitle">Aylık Trend Yorumu</strong>
+              <p id="trendNarrative">Henüz yeterli veri yok.</p>
+            </article>
+          </section>
         </section>
 
         <section class="screen" data-tab-panel="subscriptions">
@@ -215,6 +242,22 @@
                 </div>
                 <div id="archiveSummary" class="summary-card-list"></div>
               </article>
+
+              <article class="subpanel">
+                <div class="subpanel-header">
+                  <h3>Yıl Sonu Wrapped</h3>
+                  <span>Kaydırmalı özet</span>
+                </div>
+                <div id="wrappedSummary" class="wrapped-summary"></div>
+              </article>
+
+              <article class="subpanel">
+                <div class="subpanel-header">
+                  <h3>Çeyreklik Denetim</h3>
+                  <span id="auditStatus">Takip ediliyor</span>
+                </div>
+                <div id="auditSummary" class="audit-list empty-state"></div>
+              </article>
             </div>
           </section>
 
@@ -268,6 +311,21 @@
               <label>
                 <span>Büyük ödeme eşiği (TL / yıl)</span>
                 <input name="highAnnualThreshold" type="number" min="0" step="1" />
+              </label>
+              <label>
+                <span>Kahve referans fiyatı (TL)</span>
+                <input name="coffeePrice" type="number" min="1" step="1" />
+              </label>
+              <label>
+                <span>1 hafta tatil bütçesi (TL)</span>
+                <input name="vacationBudget" type="number" min="100" step="100" />
+              </label>
+              <label>
+                <span>Denetim hatırlatması (ay)</span>
+                <select name="auditReminderMonths">
+                  <option value="3">3 ay</option>
+                  <option value="6">6 ay</option>
+                </select>
               </label>
               <label class="checkbox-row">
                 <input name="notificationsEnabled" type="checkbox" />

@@ -471,6 +471,49 @@ label span {
   gap: 12px;
 }
 
+.cashflow-calendar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.calendar-day {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(11, 72, 146, 0.06);
+}
+
+.calendar-day.is-medium {
+  box-shadow: inset 0 0 0 1px rgba(19, 183, 201, 0.18);
+}
+
+.calendar-day.is-heavy {
+  box-shadow: inset 0 0 0 1px rgba(214, 69, 93, 0.18);
+  background: rgba(255, 245, 247, 0.84);
+}
+
+.calendar-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.calendar-chip {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.74rem;
+}
+
+.calendar-chip-trial {
+  background: rgba(239, 143, 27, 0.12);
+  color: var(--warning);
+}
+
 .timeline-item {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto;
@@ -502,6 +545,56 @@ label span {
 
 .timeline-side {
   text-align: right;
+}
+
+.insight-card,
+.wrapped-card,
+.audit-item {
+  border-radius: 22px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(11, 72, 146, 0.08);
+}
+
+.insight-card p,
+.wrapped-card p,
+.audit-item p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.wrapped-summary,
+.audit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.wrapped-summary {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+}
+
+.wrapped-card {
+  scroll-snap-align: start;
+  min-height: 160px;
+}
+
+.wrapped-card strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.2rem;
+  font-family: var(--font-serif);
+}
+
+.audit-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
 }
 
 label {
@@ -1082,7 +1175,8 @@ textarea:focus {
   .group-grid,
   .summary-card-list,
   .subscription-stats,
-  .inline-filters {
+  .inline-filters,
+  .cashflow-calendar {
     grid-template-columns: 1fr;
   }
 

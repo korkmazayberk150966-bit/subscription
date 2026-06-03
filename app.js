@@ -10,12 +10,17 @@ const DEFAULT_SETTINGS = {
   renewalReminderDays: 3,
   trialReminderDays: 3,
   highAnnualThreshold: 3000,
+  coffeePrice: 95,
+  vacationBudget: 18000,
+  auditReminderMonths: 3,
   notificationsEnabled: false,
   darkModePreferred: false,
   theme: "light",
   lastRateSync: "",
   lastRateSource: "manual",
-  notifiedAlerts: {}
+  notifiedAlerts: {},
+  lastAuditPrompt: "",
+  snoozedAuditUntil: ""
 };
 
 const STATUS_LABELS = {
@@ -105,6 +110,11 @@ const dom = {
   alertBadge: $("#alertBadge"),
   alertsList: $("#alertsList"),
   timelineList: $("#timelineList"),
+  next7DaysSummary: $("#next7DaysSummary"),
+  cashflowCalendar: $("#cashflowCalendar"),
+  comparisonSummary: $("#comparisonSummary"),
+  trendNarrativeTitle: $("#trendNarrativeTitle"),
+  trendNarrative: $("#trendNarrative"),
   categoryLegendSummary: $("#categoryLegendSummary"),
   categoryLegend: $("#categoryLegend"),
   expensiveList: $("#expensiveList"),
@@ -113,6 +123,9 @@ const dom = {
   yearSummary: $("#yearSummary"),
   trialSummary: $("#trialSummary"),
   archiveSummary: $("#archiveSummary"),
+  wrappedSummary: $("#wrappedSummary"),
+  auditStatus: $("#auditStatus"),
+  auditSummary: $("#auditSummary"),
   subscriptionsList: $("#subscriptionsList"),
   paymentsList: $("#paymentsList"),
   settingsForm: $("#settingsForm"),
@@ -376,6 +389,37 @@ function bindEvents() {
     } else if (action === "delete") {
       await handleDeleteRecord(record);
     }
+  });
+
+  dom.auditSummary.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-audit-action]");
+    if (!button) {
+      return;
+    }
+    const record = state.records.find((item) => item.id === button.dataset.recordId);
+    if (!record) {
+      return;
+    }
+    const action = button.dataset.auditAction;
+    if (action === "keep") {
+      record.lastUsedDate = todayIso();
+      record.updatedAt = new Date().toISOString();
+      await putRecord("subscriptions", record);
+      state.settings.lastAuditPrompt = new Date().toISOString();
+      await putRecord("settings", state.settings);
+      showToast(`${getRecordDisplayTitle(record)} tutuldu.`);
+    } else if (action === "cancel") {
+      state.settings.lastAuditPrompt = new Date().toISOString();
+      await putRecord("settings", state.settings);
+      await archiveRecord(record, { toastMessage: `${getRecordDisplayTitle(record)} arşive taşındı.` });
+    } else if (action === "remind") {
+      state.settings.snoozedAuditUntil = addDaysIso(todayIso(), 30);
+      state.settings.lastAuditPrompt = new Date().toISOString();
+      await putRecord("settings", state.settings);
+      showToast("Denetim 30 gün ertelendi.");
+    }
+    await loadState();
+    renderAll();
   });
 }
 
@@ -785,6 +829,9 @@ async function handleSettingsSubmit(event) {
     renewalReminderDays: Number(formData.get("renewalReminderDays") || 3),
     trialReminderDays: Number(formData.get("trialReminderDays") || 3),
     highAnnualThreshold: Number(formData.get("highAnnualThreshold") || 0),
+    coffeePrice: Number(formData.get("coffeePrice") || DEFAULT_SETTINGS.coffeePrice),
+    vacationBudget: Number(formData.get("vacationBudget") || DEFAULT_SETTINGS.vacationBudget),
+    auditReminderMonths: Number(formData.get("auditReminderMonths") || DEFAULT_SETTINGS.auditReminderMonths),
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     darkModePreferred: false,
     theme: "light"
@@ -939,6 +986,11 @@ function renderOverview() {
   renderTrialSummary(activeTrials);
   renderArchiveSummary();
   renderUpcomingTimeline();
+  renderCashflowCalendar();
+  renderComparisonSummary(monthlyTotal, yearlyTotal);
+  renderTrendNarrative(monthlyTotal, previousMonthTotal);
+  renderWrappedSummary();
+  renderAuditSummary();
 }
 
 function renderAlerts() {
@@ -1183,6 +1235,160 @@ function renderTrialSummary(activeTrials) {
     .join("");
 }
 
+function renderCashflowCalendar() {
+  const days = buildCashflowCalendarDays();
+  const next7 = days.filter((day) => day.offset >= 0 && day.offset <= 6 && (day.total > 0 || day.trials.length));
+  dom.next7DaysSummary.innerHTML = [
+    {
+      title: "Önümüzdeki 7 gün",
+      value: formatCurrency(sum(next7.map((day) => day.total)))
+    },
+    {
+      title: "Tahsilat günü",
+      value: `${next7.filter((day) => day.total > 0).length} gün`
+    },
+    {
+      title: "Deneme bitişi",
+      value: `${next7.reduce((count, day) => count + day.trials.length, 0)} adet`
+    },
+    {
+      title: "En yoğun gün",
+      value: next7.length ? formatDate(next7.sort((a, b) => b.total - a.total)[0]?.date || "") : "Yok"
+    }
+  ]
+    .map(
+      (item) => `
+        <article class="summary-item">
+          <small>${item.title}</small>
+          <strong>${item.value}</strong>
+        </article>
+      `
+    )
+    .join("");
+
+  if (!days.some((day) => day.total > 0 || day.trials.length)) {
+    dom.cashflowCalendar.innerHTML = getEmptyStateMarkup("◌", "Bu ay sakin görünüyor", "Ay içinde işaretlenecek ödeme ya da deneme bitişi yok.");
+    dom.cashflowCalendar.classList.add("empty-state");
+    return;
+  }
+
+  dom.cashflowCalendar.classList.remove("empty-state");
+  dom.cashflowCalendar.innerHTML = days
+    .map((day) => {
+      const intensityClass = day.total >= 1000 ? "is-heavy" : day.total >= 300 ? "is-medium" : "";
+      const chips = [
+        ...day.items.slice(0, 2).map((item) => `<span class="calendar-chip">${escapeHtml(item)}</span>`),
+        ...day.trials.slice(0, 1).map((item) => `<span class="calendar-chip calendar-chip-trial">${escapeHtml(item)}</span>`)
+      ].join("");
+      return `
+        <article class="calendar-day ${intensityClass}">
+          <small>${day.dayLabel}</small>
+          <strong>${day.total > 0 ? formatCurrency(day.total) : day.trials.length ? "Deneme" : "-"}</strong>
+          <div class="calendar-chips">${chips}</div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderComparisonSummary(monthlyTotal, yearlyTotal) {
+  const coffeePrice = Number(state.settings.coffeePrice || DEFAULT_SETTINGS.coffeePrice);
+  const vacationBudget = Number(state.settings.vacationBudget || DEFAULT_SETTINGS.vacationBudget);
+  const monthlyCoffees = coffeePrice ? Math.round(monthlyTotal / coffeePrice) : 0;
+  const yearlyVacations = vacationBudget ? (yearlyTotal / vacationBudget).toFixed(1) : "0.0";
+  dom.comparisonSummary.innerHTML = [
+    {
+      title: "Aylık kahve karşılığı",
+      value: `${monthlyCoffees} kahve`
+    },
+    {
+      title: "Yıllık tatil karşılığı",
+      value: `${yearlyVacations} hafta`
+    },
+    {
+      title: "Referans kahve",
+      value: formatCurrency(coffeePrice)
+    },
+    {
+      title: "Referans tatil",
+      value: formatCurrency(vacationBudget)
+    }
+  ]
+    .map(
+      (item) => `
+        <article class="summary-item">
+          <small>${item.title}</small>
+          <strong>${item.value}</strong>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderTrendNarrative(currentMonthTotal, previousMonthTotal) {
+  const diff = currentMonthTotal - previousMonthTotal;
+  const percent = previousMonthTotal ? Math.round((diff / previousMonthTotal) * 100) : currentMonthTotal > 0 ? 100 : 0;
+  const monthStats = buildMonthReasonBreakdown();
+  const topIncrease = monthStats.increases[0];
+  const topDecrease = monthStats.decreases[0];
+  let sentence = "Henüz yeterli değişim sinyali yok.";
+
+  if (diff > 0 && topIncrease) {
+    sentence = `Geçen aya göre %${Math.abs(percent)} arttı. En büyük sebep ${topIncrease.name} kaydının etkisi (+${formatCurrency(topIncrease.delta)}).`;
+  } else if (diff < 0 && topDecrease) {
+    sentence = `Geçen aya göre %${Math.abs(percent)} düştü. En büyük fark ${topDecrease.name} kaydındaki azalma (${formatCurrency(Math.abs(topDecrease.delta))}).`;
+  } else if (diff === 0) {
+    sentence = "Geçen aya göre toplam maliyet neredeyse aynı kaldı.";
+  }
+
+  dom.trendNarrativeTitle.textContent = `${diff >= 0 ? "Artış" : "Azalış"} özeti`;
+  dom.trendNarrative.textContent = sentence;
+}
+
+function renderWrappedSummary() {
+  const wrapped = buildWrappedSummary();
+  dom.wrappedSummary.innerHTML = wrapped
+    .map(
+      (item) => `
+        <article class="wrapped-card">
+          <small>${item.title}</small>
+          <strong>${item.value}</strong>
+          <p>${item.note}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderAuditSummary() {
+  const auditItems = buildAuditItems();
+  const due = isAuditReminderDue();
+  dom.auditStatus.textContent = due ? "Gözden geçirme zamanı" : "Takvimde";
+  if (!auditItems.length) {
+    dom.auditSummary.innerHTML = getEmptyStateMarkup("✓", "Denetim temiz", "Şu an hızlı aksiyon gerektiren bir abonelik görünmüyor.");
+    dom.auditSummary.classList.add("empty-state");
+    return;
+  }
+  dom.auditSummary.classList.remove("empty-state");
+  dom.auditSummary.innerHTML = auditItems
+    .map(
+      (item) => `
+        <article class="audit-item">
+          <div>
+            <strong>${escapeHtml(item.title)}</strong>
+            <p>${escapeHtml(item.reason)}</p>
+          </div>
+          <div class="audit-actions">
+            <button class="ghost-button" type="button" data-audit-action="keep" data-record-id="${item.id}">Tut</button>
+            <button class="danger-button" type="button" data-audit-action="cancel" data-record-id="${item.id}">İptal et</button>
+            <button class="ghost-button" type="button" data-audit-action="remind" data-record-id="${item.id}">Hatırlat</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
 function renderArchiveSummary() {
   const totalSavings = sum(state.archives.map((item) => item.annualSavingsTl));
   const lastArchived = state.archives[0];
@@ -1348,6 +1554,16 @@ function buildAlerts() {
       badge: "Bütçe",
       title: "Aylık bütçe hedefi aşıldı",
       message: `${formatCurrency(monthlyTotal)} toplam, hedefin ${formatCurrency(budgetTarget)}.`
+    });
+  }
+  if (isAuditReminderDue()) {
+    alerts.push({
+      id: `audit-${todayIso()}`,
+      type: "audit",
+      severity: "info",
+      badge: "Denetim",
+      title: "Aboneliklerini gözden geçirme zamanı",
+      message: "3 aylık denetim ekranında kullanılmayan, zamlanan ve denemesi bitecek kayıtları incele."
     });
   }
   return alerts.sort((a, b) => severityScore(b.severity) - severityScore(a.severity));
@@ -1622,6 +1838,10 @@ function monthlyOccurrenceForMonth(record, year, month) {
     }
   }
   return 0;
+}
+
+function getMonthlyOccurrenceTl(record, year, month) {
+  return monthlyOccurrenceForMonth(record, year, month);
 }
 
 function drawDonutChart(canvas, values, colors) {
@@ -2177,6 +2397,12 @@ function addMonthsIso(value, months) {
   return toIsoDate(date);
 }
 
+function addDaysIso(value, days) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return toIsoDate(date);
+}
+
 function toIsoDate(date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
@@ -2301,6 +2527,173 @@ function buildUpcomingTimelineItems() {
       }];
     })
     .sort((a, b) => a.date - b.date);
+}
+
+function buildCashflowCalendarDays() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const days = Array.from({ length: totalDays }, (_, index) => {
+    const date = new Date(year, month, index + 1);
+    return {
+      date,
+      dayLabel: `${index + 1} ${date.toLocaleDateString("tr-TR", { weekday: "short" })}`,
+      total: 0,
+      items: [],
+      trials: [],
+      offset: daysBetween(todayIso(), toIsoDate(date))
+    };
+  });
+
+  state.records.forEach((record) => {
+    if (isInstallment(record)) {
+      const progress = getInstallmentProgress(record);
+      if (!progress.nextDueDate) {
+        return;
+      }
+      const due = new Date(progress.nextDueDate);
+      if (due.getFullYear() === year && due.getMonth() === month) {
+        const day = days[due.getDate() - 1];
+        day.total += convertToTl(record.monthlyInstallment, record.currency);
+        day.items.push(`${record.merchant} taksiti`);
+      }
+      return;
+    }
+
+    if (isTrialRecord(record) && record.trialEndDate) {
+      const trialDate = new Date(record.trialEndDate);
+      if (trialDate.getFullYear() === year && trialDate.getMonth() === month) {
+        days[trialDate.getDate() - 1].trials.push(`${record.name} deneme bitişi`);
+      }
+      return;
+    }
+
+    const due = new Date(record.nextPaymentDate);
+    if (due.getFullYear() === year && due.getMonth() === month) {
+      const day = days[due.getDate() - 1];
+      day.total += convertToTl(record.price, record.currency);
+      day.items.push(record.name);
+    }
+  });
+
+  return days;
+}
+
+function buildMonthReasonBreakdown() {
+  const current = state.records.map((record) => ({
+    id: record.id,
+    name: getRecordDisplayTitle(record),
+    total: getMonthlyOccurrenceTl(record, new Date().getFullYear(), new Date().getMonth())
+  }));
+  const previousDate = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+  const previous = Object.fromEntries(
+    state.records.map((record) => [
+      record.id,
+      getMonthlyOccurrenceTl(record, previousDate.getFullYear(), previousDate.getMonth())
+    ])
+  );
+  const deltas = current.map((item) => ({
+    ...item,
+    delta: item.total - Number(previous[item.id] || 0)
+  }));
+  return {
+    increases: deltas.filter((item) => item.delta > 0).sort((a, b) => b.delta - a.delta),
+    decreases: deltas.filter((item) => item.delta < 0).sort((a, b) => a.delta - b.delta)
+  };
+}
+
+function buildWrappedSummary() {
+  const currentYear = new Date().getFullYear();
+  const yearlySpent = sum(
+    state.payments
+      .filter((payment) => new Date(payment.paidAt).getFullYear() === currentYear)
+      .map((payment) => payment.tlAmountAtPayment)
+  ) || sum(state.records.map((record) => calculateAnnualTl(record)));
+  const paidRecords = state.records.filter((record) => calculateAnnualTl(record) > 0);
+  const topService = [...paidRecords].sort((a, b) => calculateAnnualTl(b) - calculateAnnualTl(a))[0];
+  const mostUsed = [...state.records].sort((a, b) => usageRank(a.usageFrequency) - usageRank(b.usageFrequency))[0];
+  const archiveSavings = sum(state.archives.map((item) => item.annualSavingsTl));
+  const distinctServices = new Set(state.records.map((record) => getRecordPrimaryName(record))).size;
+  const monthlyTrend = buildTrendData(state.records);
+  const topMonth = [...monthlyTrend].sort((a, b) => b.total - a.total)[0];
+  return [
+    {
+      title: "Toplam yıllık harcama",
+      value: formatCurrency(yearlySpent),
+      note: "Bu yıl ödediğin ya da projekte ettiğin toplam etki."
+    },
+    {
+      title: "En pahalı servis",
+      value: topService ? getRecordDisplayTitle(topService) : "Yok",
+      note: topService ? `${formatCurrency(calculateAnnualTl(topService))} ile ilk sırada.` : "Henüz ücretli kayıt yok."
+    },
+    {
+      title: "En çok kullanılan",
+      value: mostUsed ? getRecordDisplayTitle(mostUsed) : "Yok",
+      note: mostUsed ? `${usageLabel(mostUsed.usageFrequency)} olarak işaretlenmiş.` : "Kayıt bulunmuyor."
+    },
+    {
+      title: "İptal ederek biriktirilen",
+      value: formatCurrency(archiveSavings),
+      note: "Arşive taşıdığın kayıtların yıllık tahmini tasarrufu."
+    },
+    {
+      title: "Farklı servis sayısı",
+      value: `${distinctServices}`,
+      note: "Yıl boyunca ödeme yaptığın farklı servis/mağaza sayısı."
+    },
+    {
+      title: "En yoğun ay",
+      value: topMonth ? topMonth.label : "-",
+      note: topMonth ? `${formatCurrency(topMonth.total)} ile zirvede.` : "Trend verisi yok."
+    }
+  ];
+}
+
+function buildAuditItems() {
+  return state.records
+    .filter((record) => !isInstallment(record) && getRecordStatus(record) !== "cancelled")
+    .map((record) => {
+      const staleDays = record.lastUsedDate ? daysBetween(record.lastUsedDate, todayIso()) : 0;
+      const reasons = [];
+      if (staleDays >= 60) {
+        reasons.push(`${staleDays} gündür kullanılmadı`);
+      }
+      if (record.isPriceIncreased) {
+        reasons.push("son dönemde zamlandı");
+      }
+      if (isTrialRecord(record) && record.trialEndDate && daysBetween(todayIso(), record.trialEndDate) <= 7) {
+        reasons.push("deneme bitişi yaklaşıyor");
+      }
+      if (!reasons.length) {
+        return null;
+      }
+      return {
+        id: record.id,
+        title: getRecordDisplayTitle(record),
+        reason: reasons.join(" • ")
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function isAuditReminderDue() {
+  if (state.settings.snoozedAuditUntil && new Date(state.settings.snoozedAuditUntil) > stripTime(new Date())) {
+    return false;
+  }
+  if (!state.settings.lastAuditPrompt) {
+    return true;
+  }
+  const months = Number(state.settings.auditReminderMonths || DEFAULT_SETTINGS.auditReminderMonths);
+  const next = new Date(state.settings.lastAuditPrompt);
+  next.setMonth(next.getMonth() + months);
+  return stripTime(new Date()) >= stripTime(next);
+}
+
+function usageRank(value) {
+  return { high: 0, medium: 1, low: 2, unused: 3 }[value] ?? 4;
 }
 
 function setDisplayMode(mode) {
