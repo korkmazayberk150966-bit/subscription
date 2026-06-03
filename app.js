@@ -91,7 +91,6 @@ const dom = {
   headerAddBtn: $("#headerAddBtn"),
   fabAddBtn: $("#fabAddBtn"),
   quickLogBtn: $("#quickLogBtn"),
-  themeToggle: $("#themeToggle"),
   installBanner: $("#installBanner"),
   installBtn: $("#installBtn"),
   subscriptionDialog: $("#subscriptionDialog"),
@@ -126,7 +125,7 @@ async function init() {
   await Promise.all([loadCatalog(), initDatabase()]);
   bindEvents();
   await loadState();
-  applyTheme(state.settings.theme || "light");
+  applyTheme("light");
   populateCatalogSelect();
   populateSettingsForm();
   populatePaymentSubscriptions();
@@ -286,7 +285,6 @@ function bindEvents() {
   dom.importInput.addEventListener("change", importData);
   dom.statusFilter.addEventListener("change", renderRecords);
   dom.searchInput.addEventListener("input", renderRecords);
-  dom.themeToggle.addEventListener("click", toggleTheme);
   dom.catalogSelect.addEventListener("change", handleCatalogSelection);
   dom.recordTypeSelect.addEventListener("change", syncFormMode);
   dom.paymentSubscriptionSelect.addEventListener("change", autoFillPaymentAmount);
@@ -696,10 +694,10 @@ async function handleSettingsSubmit(event) {
     trialReminderDays: Number(formData.get("trialReminderDays") || 3),
     highAnnualThreshold: Number(formData.get("highAnnualThreshold") || 0),
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
-    darkModePreferred: formData.get("darkModePreferred") === "on",
-    theme: formData.get("darkModePreferred") === "on" ? "dark" : "light"
+    darkModePreferred: false,
+    theme: "light"
   };
-  applyTheme(state.settings.theme);
+  applyTheme("light");
   await putRecord("settings", state.settings);
   renderAll();
   maybeSendNotifications();
@@ -1197,7 +1195,7 @@ async function importData(event) {
     populateCatalogSelect();
     populatePaymentSubscriptions();
     renderAll();
-    applyTheme(state.settings.theme || "light");
+    applyTheme("light");
     showToast("Yedek başarıyla geri yüklendi.");
   } catch (error) {
     console.error(error);
@@ -1207,17 +1205,8 @@ async function importData(event) {
   }
 }
 
-function toggleTheme() {
-  const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
-  applyTheme(nextTheme);
-  state.settings.theme = nextTheme;
-  state.settings.darkModePreferred = nextTheme === "dark";
-  putRecord("settings", state.settings);
-  populateSettingsForm();
-}
-
 function applyTheme(theme) {
-  document.body.dataset.theme = theme;
+  document.body.dataset.theme = "light";
 }
 
 function setActiveTab(tabName) {

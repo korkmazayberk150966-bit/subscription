@@ -1,6 +1,6 @@
 @font-face {
   font-family: "App Sans";
-  src: url("./assets/fonts/NotoSans-Regular.ttf") format("truetype");
+  src: url("./assets/fonts/HankenGrotesk-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -8,7 +8,7 @@
 
 @font-face {
   font-family: "App Sans";
-  src: url("./assets/fonts/NotoSans-Bold.ttf") format("truetype");
+  src: url("./assets/fonts/HankenGrotesk-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -16,7 +16,7 @@
 
 @font-face {
   font-family: "App Serif";
-  src: url("./assets/fonts/Caladea-Regular.ttf") format("truetype");
+  src: url("./assets/fonts/SourceSerif4-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -24,7 +24,7 @@
 
 @font-face {
   font-family: "App Serif";
-  src: url("./assets/fonts/Caladea-Bold.ttf") format("truetype");
+  src: url("./assets/fonts/SourceSerif4-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -59,31 +59,6 @@
   --radius-sm: 14px;
   --font-sans: "App Sans", "Segoe UI", sans-serif;
   --font-serif: "App Serif", Georgia, serif;
-}
-
-body[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #081628;
-  --bg-accent:
-    radial-gradient(circle at 0% 0%, rgba(39, 155, 255, 0.18), transparent 30%),
-    radial-gradient(circle at 100% 0%, rgba(84, 215, 220, 0.08), transparent 30%),
-    linear-gradient(180deg, #08111f 0%, #0a1a30 52%, #09182b 100%);
-  --surface: rgba(8, 24, 44, 0.82);
-  --surface-strong: rgba(10, 30, 54, 0.94);
-  --surface-muted: rgba(8, 24, 44, 0.7);
-  --surface-border: rgba(121, 179, 244, 0.14);
-  --text: #eef5ff;
-  --muted: #93abc8;
-  --primary: #5caeff;
-  --primary-strong: #318eed;
-  --primary-soft: rgba(92, 174, 255, 0.14);
-  --accent: #54d7dc;
-  --success: #33c8a6;
-  --warning: #ffb04d;
-  --danger: #ff728a;
-  --shadow-lg: 0 28px 90px rgba(1, 9, 20, 0.48);
-  --shadow-md: 0 18px 40px rgba(1, 9, 20, 0.34);
-  --shadow-sm: 0 8px 18px rgba(1, 9, 20, 0.26);
 }
 
 * {
@@ -496,12 +471,6 @@ textarea {
   transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
 }
 
-body[data-theme="dark"] input,
-body[data-theme="dark"] select,
-body[data-theme="dark"] textarea {
-  background: rgba(2, 14, 27, 0.62);
-}
-
 input:focus,
 select:focus,
 textarea:focus {
@@ -842,11 +811,6 @@ textarea:focus {
   box-shadow: 0 14px 36px rgba(9, 31, 66, 0.16);
   backdrop-filter: blur(18px);
   z-index: 45;
-}
-
-body[data-theme="dark"] .bottom-nav {
-  background: rgba(9, 28, 52, 0.84);
-  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .tab-button {
