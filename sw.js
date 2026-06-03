@@ -1,4 +1,4 @@
-const CACHE_NAME = "abonelik-takibi-v6";
+const CACHE_NAME = "abonelik-takibi-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,6 +12,7 @@ const APP_SHELL = [
   "./assets/fonts/SourceSerif4-Bold.ttf",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
+  "./assets/icons/akce-source-logo.png",
   "./assets/icons/icon.svg",
   "./assets/icons/icon-maskable.svg",
   "./assets/logos/netflix.svg",

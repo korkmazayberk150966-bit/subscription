@@ -1715,7 +1715,7 @@ function updateHeaderForTab() {
     subscriptions: { title: "Abonelikler", meta: "Abonelikler ve taksitler" },
     analytics: { title: "Analiz", meta: "Maliyet görünümü" },
     settings: { title: "Ayarlar", meta: "Tercihler ve yedek" }
-  }[state.activeTab] || { title: "Abonelik Takibi", meta: "Hazır" };
+  }[state.activeTab] || { title: "Akçe", meta: "Hazır" };
 
   dom.appHeaderTitle.textContent = config.title;
   dom.appHeaderMeta.textContent = config.meta;

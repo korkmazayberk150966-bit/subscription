@@ -1,4 +1,4 @@
-# Abonelik Takibi
+# Akçe
 
 Tamamen yerel, offline calisabilen PWA tabanli abonelik ve maliyet takip uygulamasi.
 

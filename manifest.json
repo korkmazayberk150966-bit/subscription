@@ -1,7 +1,7 @@
 {
-  "name": "Abonelik Takibi",
-  "short_name": "Abonelik",
-  "description": "Kisisel abonelik ve maliyet takip uygulamasi",
+  "name": "Akçe",
+  "short_name": "Akçe",
+  "description": "Kisisel abonelik ve maliyet takip uygulamasi Akçe",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#081628",
