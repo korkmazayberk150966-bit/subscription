@@ -2226,7 +2226,8 @@ function getLogoAssetPath(record) {
   const key = slugifyLogoKey(getRecordPrimaryName(record));
   const catalogMatch = state.catalog.find((item) => slugifyLogoKey(item.name) === key);
   const slug = catalogMatch?.logo || key;
-  return KNOWN_LOGO_ASSETS[slug] || "";
+  const asset = KNOWN_LOGO_ASSETS[slug] || "";
+  return asset ? asset.replace(/\.svg$/, ".png") : "";
 }
 
 function createLogoDataUri({ label, color, title, subtitle }) {

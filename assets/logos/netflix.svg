@@ -1,6 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="18" fill="#141414"/>
-  <path d="M20 12h8l16 40h-8z" fill="#B20710"/>
-  <path d="M20 12h8v40h-8z" fill="#E50914"/>
-  <path d="M36 12h8v40h-8z" fill="#E50914"/>
-</svg>
+<svg fill="#E50914" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Netflix</title><path d="m5.398 0 8.348 23.602c2.346.059 4.856.398 4.856.398L10.113 0H5.398zm8.489 0v9.172l4.715 13.33V0h-4.715zM5.398 1.5V24c1.873-.225 2.81-.312 4.715-.398V14.83L5.398 1.5z"/></svg>
