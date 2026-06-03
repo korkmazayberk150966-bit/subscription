@@ -48,6 +48,29 @@ const USAGE_SCORES = {
   unused: 1
 };
 
+const VIEW_MODE_LABELS = {
+  monthly: "Bu Ay Toplam",
+  yearly: "Yıllık Görünüm"
+};
+
+const ONBOARDING_STEPS = [
+  {
+    icon: "A",
+    title: "Harcamalarını tek yerde tut",
+    body: "Aboneliklerini, taksitlerini ve denemelerini tek uygulamada takip et."
+  },
+  {
+    icon: "₺",
+    title: "Kur ve bütçe akışını gör",
+    body: "Canlı kur, bütçe uyarıları ve yaklaşan ödemelerle neyin yaklaştığını önceden fark et."
+  },
+  {
+    icon: "✓",
+    title: "Karar vermeyi kolaylaştır",
+    body: "Deneme bitişleri, iptal adayları ve kullanım başına maliyet gibi sinyallerle daha net karar ver."
+  }
+];
+
 const state = {
   db: null,
   catalog: [],
@@ -59,7 +82,10 @@ const state = {
   deferredPrompt: null,
   activePaymentSubscriptionId: null,
   activeTab: "overview",
-  processingTrialDecision: false
+  processingTrialDecision: false,
+  displayMode: "monthly",
+  onboardingStep: 0,
+  serviceWorkerRegistration: null
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -72,10 +98,13 @@ const dom = {
   budgetStatus: $("#budgetStatus"),
   upcomingCount: $("#upcomingCount"),
   monthlyTrialsCount: $("#monthlyTrialsCount"),
+  monthlyDelta: $("#monthlyDelta"),
+  heroTitle: $("#heroTitle"),
   appHeaderTitle: $("#appHeaderTitle"),
   appHeaderMeta: $("#appHeaderMeta"),
   alertBadge: $("#alertBadge"),
   alertsList: $("#alertsList"),
+  timelineList: $("#timelineList"),
   categoryLegendSummary: $("#categoryLegendSummary"),
   categoryLegend: $("#categoryLegend"),
   expensiveList: $("#expensiveList"),
@@ -90,12 +119,14 @@ const dom = {
   refreshRatesBtn: $("#refreshRatesBtn"),
   ratesMeta: $("#ratesMeta"),
   requestNotificationBtn: $("#requestNotificationBtn"),
+  testNotificationBtn: $("#testNotificationBtn"),
   exportBtn: $("#exportBtn"),
   importInput: $("#importInput"),
   statusFilter: $("#statusFilter"),
+  sortFilter: $("#sortFilter"),
   searchInput: $("#searchInput"),
-  addSubscriptionBtn: $("#addSubscriptionBtn"),
-  headerAddBtn: $("#headerAddBtn"),
+  monthlyViewBtn: $("#monthlyViewBtn"),
+  yearlyViewBtn: $("#yearlyViewBtn"),
   fabAddBtn: $("#fabAddBtn"),
   quickLogBtn: $("#quickLogBtn"),
   installBanner: $("#installBanner"),
@@ -122,6 +153,12 @@ const dom = {
   detailPreviewType: $("#detailPreviewType"),
   detailPreviewTitle: $("#detailPreviewTitle"),
   detailPreviewPrice: $("#detailPreviewPrice"),
+  onboardingDialog: $("#onboardingDialog"),
+  onboardingTitle: $("#onboardingTitle"),
+  onboardingBody: $("#onboardingBody"),
+  onboardingIcon: $("#onboardingIcon"),
+  nextOnboardingBtn: $("#nextOnboardingBtn"),
+  skipOnboardingBtn: $("#skipOnboardingBtn"),
   tabButtons: Array.from(document.querySelectorAll(".tab-button")),
   tabPanels: Array.from(document.querySelectorAll("[data-tab-panel]"))
 };
@@ -132,6 +169,7 @@ async function init() {
   await Promise.all([loadCatalog(), initDatabase()]);
   bindEvents();
   await loadState();
+  state.displayMode = window.localStorage.getItem("abonelik-view-mode") || "monthly";
   applyTheme("light");
   populateCatalogSelect();
   populateSettingsForm();
@@ -142,6 +180,7 @@ async function init() {
   await registerServiceWorker();
   maybeSendNotifications();
   await maybeResolveExpiredTrials();
+  maybeShowOnboarding();
 }
 
 async function loadCatalog() {
@@ -197,6 +236,7 @@ function normalizeRecord(record) {
   const base = {
     recordType: "subscription",
     logoMode: "monogram",
+    priceHistory: [],
     category: "",
     notes: "",
     status: "active",
@@ -277,8 +317,6 @@ function clearStore(storeName) {
 }
 
 function bindEvents() {
-  dom.addSubscriptionBtn.addEventListener("click", () => openRecordDialog());
-  dom.headerAddBtn.addEventListener("click", () => openRecordDialog());
   dom.fabAddBtn.addEventListener("click", () => openRecordDialog());
   dom.quickLogBtn.addEventListener("click", () => openPaymentDialog());
   dom.closeDialogBtn.addEventListener("click", () => dom.subscriptionDialog.close());
@@ -290,10 +328,14 @@ function bindEvents() {
   dom.settingsForm.addEventListener("submit", handleSettingsSubmit);
   dom.refreshRatesBtn.addEventListener("click", refreshLiveRates);
   dom.requestNotificationBtn.addEventListener("click", requestNotificationPermission);
+  dom.testNotificationBtn.addEventListener("click", sendTestNotification);
   dom.exportBtn.addEventListener("click", exportData);
   dom.importInput.addEventListener("change", importData);
   dom.statusFilter.addEventListener("change", renderRecords);
+  dom.sortFilter.addEventListener("change", renderRecords);
   dom.searchInput.addEventListener("input", renderRecords);
+  dom.monthlyViewBtn.addEventListener("click", () => setDisplayMode("monthly"));
+  dom.yearlyViewBtn.addEventListener("click", () => setDisplayMode("yearly"));
   dom.catalogSelect.addEventListener("change", handleCatalogSelection);
   dom.recordTypeSelect.addEventListener("change", syncFormMode);
   dom.paymentSubscriptionSelect.addEventListener("change", autoFillPaymentAmount);
@@ -302,10 +344,12 @@ function bindEvents() {
   dom.tabButtons.forEach((button) => {
     button.addEventListener("click", () => setActiveTab(button.dataset.tabTarget));
   });
-  [dom.subscriptionDialog, dom.paymentDialog].forEach((dialog) => {
+  [dom.subscriptionDialog, dom.paymentDialog, dom.onboardingDialog].forEach((dialog) => {
     dialog.addEventListener("close", syncSheetState);
     dialog.addEventListener("cancel", syncSheetState);
   });
+  dom.nextOnboardingBtn.addEventListener("click", advanceOnboarding);
+  dom.skipOnboardingBtn.addEventListener("click", completeOnboarding);
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -513,8 +557,12 @@ function updateDetailPreview() {
     ? buildInstallmentPreviewLine()
     : buildSubscriptionPreviewLine();
   const status = getFieldValue("status");
+  const previewRecord = installmentMode
+    ? { recordType: "installment", merchant: title, name: title, category: "Taksitli Alışveriş" }
+    : { recordType: "subscription", name: title, category: getFieldValue("category") };
+  const localLogo = getLogoAssetPath(previewRecord);
 
-  const logoSvg = createLogoDataUri({ label: monogram, color, title, subtitle: installmentMode ? "TAKSİT" : "ABONE" });
+  const logoSvg = localLogo || createLogoDataUri({ label: monogram, color, title, subtitle: installmentMode ? "TAKSİT" : "ABONE" });
   dom.detailPreviewLogo.style.background = color;
   dom.detailPreviewLogo.innerHTML = `<img src="${logoSvg}" alt="" />`;
   dom.detailPreviewType.textContent = installmentMode ? "Taksitli alışveriş" : status === "trial" ? "Deneme aboneliği" : "Abonelik";
@@ -589,6 +637,21 @@ async function handleRecordSubmit(event) {
       updatedAt: new Date().toISOString()
     });
   } else {
+    const nextPriceHistory = [...(existing?.priceHistory || [])];
+    if (
+      existing &&
+      !isInstallment(existing) &&
+      (Number(existing.price) !== Number(formData.get("price")) ||
+        existing.currency !== formData.get("currency") ||
+        existing.billingCycle !== formData.get("billingCycle"))
+    ) {
+      nextPriceHistory.unshift({
+        amount: Number(existing.price || 0),
+        currency: existing.currency || "TRY",
+        billingCycle: existing.billingCycle || "monthly",
+        recordedAt: new Date().toISOString()
+      });
+    }
     record = normalizeRecord({
       id: existing?.id || createId("rec"),
       recordType: "subscription",
@@ -608,6 +671,7 @@ async function handleRecordSubmit(event) {
       lastUsedDate: formData.get("lastUsedDate") || "",
       usageFrequency: formData.get("usageFrequency") || "medium",
       isPriceIncreased: formData.get("isPriceIncreased") === "on",
+      priceHistory: nextPriceHistory.slice(0, 12),
       createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -820,6 +884,7 @@ function renderAll() {
   populateSettingsForm();
   updateHeaderForTab();
   updateFabVisibility();
+  updateViewModeControls();
 }
 
 function updateRatesMeta() {
@@ -842,15 +907,26 @@ function renderOverview() {
   const monthlyInstallments = sum(activeInstallments.map((item) => calculateMonthlyTl(item)));
   const monthlyTotal = monthlySubscriptions + monthlyInstallments;
   const yearlyTotal = sum(state.records.map((item) => calculateAnnualTl(item)));
+  const previousMonthTotal = calculateMonthTotalRelative(-1);
   const alerts = buildAlerts();
   const budgetTarget = Number(state.settings.monthlyBudget || 0);
+  const displayTotal = state.displayMode === "yearly" ? yearlyTotal : monthlyTotal;
+  const displaySubscriptionTotal = state.displayMode === "yearly" ? monthlySubscriptions * 12 : monthlySubscriptions;
+  const displayInstallmentTotal = state.displayMode === "yearly" ? monthlyInstallments * 12 : monthlyInstallments;
+  const deltaPercentage = previousMonthTotal
+    ? ((monthlyTotal - previousMonthTotal) / previousMonthTotal) * 100
+    : monthlyTotal > 0
+      ? 100
+      : 0;
 
-  dom.monthlyTotal.textContent = formatCurrency(monthlyTotal);
-  dom.monthlySubscriptionsTotal.textContent = formatCurrency(monthlySubscriptions);
-  dom.monthlyInstallmentsTotal.textContent = formatCurrency(monthlyInstallments);
+  dom.heroTitle.textContent = VIEW_MODE_LABELS[state.displayMode] || VIEW_MODE_LABELS.monthly;
+  dom.monthlyTotal.textContent = formatCurrency(displayTotal);
+  dom.monthlySubscriptionsTotal.textContent = formatCurrency(displaySubscriptionTotal);
+  dom.monthlyInstallmentsTotal.textContent = formatCurrency(displayInstallmentTotal);
   dom.yearlyProjection.textContent = formatCurrency(yearlyTotal);
   dom.upcomingCount.textContent = String(alerts.filter((item) => item.type !== "budget").length);
   dom.monthlyTrialsCount.textContent = String(activeTrials.length);
+  dom.monthlyDelta.textContent = `${deltaPercentage >= 0 ? "+" : ""}${deltaPercentage.toFixed(0)}%`;
   dom.budgetStatus.textContent = budgetTarget
     ? `${formatCurrency(monthlyTotal)} / ${formatCurrency(budgetTarget)}`
     : "Hedef yok";
@@ -862,14 +938,16 @@ function renderOverview() {
   renderYearSummary(yearlyTotal);
   renderTrialSummary(activeTrials);
   renderArchiveSummary();
+  renderUpcomingTimeline();
 }
 
 function renderAlerts() {
   const alerts = buildAlerts();
   dom.alertBadge.textContent = String(alerts.length);
+  syncAppBadge(alerts.length);
   dom.alertsList.innerHTML = "";
   if (!alerts.length) {
-    dom.alertsList.textContent = "Şu an dikkat gerektiren bir durum yok.";
+    dom.alertsList.innerHTML = getEmptyStateMarkup("✓", "Her şey yolunda", "Şu an dikkat gerektiren bir durum görünmüyor.");
     dom.alertsList.classList.add("empty-state");
     return;
   }
@@ -898,10 +976,12 @@ function renderRecords() {
     const matchesSearch = search ? haystack.includes(search) : true;
     return matchesStatus && matchesSearch;
   });
+  const sortValue = dom.sortFilter.value;
+  filtered.sort((a, b) => compareRecords(sortValue, a, b));
 
   dom.subscriptionsList.innerHTML = "";
   if (!filtered.length) {
-    dom.subscriptionsList.textContent = "Filtreye uyan kayıt yok.";
+    dom.subscriptionsList.innerHTML = getEmptyStateMarkup("⌁", "Henüz kayıt yok", "İlk aboneliğini ya da taksitini ekleyerek listeyi doldur.");
     dom.subscriptionsList.classList.add("empty-state");
     return;
   }
@@ -960,7 +1040,7 @@ function renderRecords() {
 function renderPayments() {
   dom.paymentsList.innerHTML = "";
   if (!state.payments.length) {
-    dom.paymentsList.textContent = "Henüz manuel ödeme kaydı yok.";
+    dom.paymentsList.innerHTML = getEmptyStateMarkup("₺", "Ödeme geçmişi boş", "İlk manuel ödeme kaydını eklediğinde burada akışını göreceksin.");
     dom.paymentsList.classList.add("empty-state");
     return;
   }
@@ -989,7 +1069,7 @@ function renderTopExpensive(records) {
     .slice(0, 5);
   dom.expensiveList.innerHTML = "";
   if (!topItems.length) {
-    dom.expensiveList.textContent = "Gösterilecek veri yok.";
+    dom.expensiveList.innerHTML = getEmptyStateMarkup("◎", "Henüz maliyet sıralaması yok", "Ücretli kayıt eklediğinde en yüksek etkili servisler burada görünür.");
     dom.expensiveList.classList.add("empty-state");
     return;
   }
@@ -1015,7 +1095,7 @@ function renderCancellationCandidates(records) {
     .slice(0, 5);
   dom.cancellationList.innerHTML = "";
   if (!candidates.length) {
-    dom.cancellationList.textContent = "İptal adayı hesaplanacak veri yok.";
+    dom.cancellationList.innerHTML = getEmptyStateMarkup("⌁", "İptal adayı yok", "Kullanım ve maliyet verisi arttıkça burada tasarruf fırsatları görünecek.");
     dom.cancellationList.classList.add("empty-state");
     return;
   }
@@ -1247,6 +1327,17 @@ function buildAlerts() {
         message: "Güncel fiyatı kontrol etmek isteyebilirsin."
       });
     }
+    const staleDays = record.lastUsedDate ? daysBetween(record.lastUsedDate, todayIso()) : 0;
+    if (annualTl >= Math.max(600, Number(state.settings.highAnnualThreshold || 0) * 0.35) && staleDays >= 45) {
+      alerts.push({
+        id: `stale-${record.id}-${record.lastUsedDate}`,
+        type: "stale",
+        severity: "info",
+        badge: `${staleDays} gün`,
+        title: `${record.name} uzun süredir kullanılmıyor`,
+        message: `${record.name} son ${staleDays} gündür kullanılmamış görünüyor. Maliyeti ${formatCurrency(annualTl)} / yıl.`
+      });
+    }
   });
 
   if (budgetTarget && monthlyTotal > budgetTarget) {
@@ -1262,28 +1353,34 @@ function buildAlerts() {
   return alerts.sort((a, b) => severityScore(b.severity) - severityScore(a.severity));
 }
 
-function maybeSendNotifications() {
+async function maybeSendNotifications() {
+  const todayKey = todayIso();
+  const alerts = buildAlerts();
+  syncAppBadge(alerts.length);
   if (!("Notification" in window) || Notification.permission !== "granted" || !state.settings.notificationsEnabled) {
     return;
   }
-  const todayKey = todayIso();
-  const alerts = buildAlerts();
   const notified = state.settings.notifiedAlerts || {};
   let changed = false;
 
-  alerts.forEach((alert) => {
+  for (const alert of alerts) {
     const key = `${todayKey}:${alert.id}`;
     if (notified[key]) {
-      return;
+      continue;
     }
-    new Notification(alert.title, { body: alert.message, icon: "./assets/icons/icon-192.png" });
+    await showLocalNotification(alert.title, {
+      body: alert.message,
+      icon: "./assets/icons/icon-192.png",
+      badge: "./assets/icons/icon-192.png",
+      tag: alert.id
+    });
     notified[key] = true;
     changed = true;
-  });
+  }
 
   if (changed) {
     state.settings.notifiedAlerts = notified;
-    putRecord("settings", state.settings);
+    await putRecord("settings", state.settings);
   }
 }
 
@@ -1302,6 +1399,24 @@ async function requestNotificationPermission() {
   } else {
     showToast("Bildirim izni verilmedi.");
   }
+}
+
+async function sendTestNotification() {
+  if (!("Notification" in window)) {
+    showToast("Bu tarayıcı bildirim desteklemiyor.");
+    return;
+  }
+  if (!state.settings.notificationsEnabled || Notification.permission !== "granted") {
+    showToast("Önce bildirim izni ver.");
+    return;
+  }
+  await showLocalNotification("Test bildirimi", {
+    body: "Yerel bildirim sistemi bu cihazda çalışıyor.",
+    icon: "./assets/icons/icon-192.png",
+    badge: "./assets/icons/icon-192.png",
+    tag: `test-${todayIso()}`
+  });
+  showToast("Test bildirimi gönderildi.");
 }
 
 async function exportData() {
@@ -1398,7 +1513,7 @@ function updateFabVisibility() {
 function syncSheetState() {
   document.body.classList.toggle(
     "sheet-open",
-    Boolean(dom.subscriptionDialog?.open) || Boolean(dom.paymentDialog?.open)
+    Boolean(dom.subscriptionDialog?.open) || Boolean(dom.paymentDialog?.open) || Boolean(dom.onboardingDialog?.open)
   );
 }
 
@@ -1407,9 +1522,35 @@ async function registerServiceWorker() {
     return;
   }
   try {
-    await navigator.serviceWorker.register("./sw.js");
+    state.serviceWorkerRegistration = await navigator.serviceWorker.register("./sw.js");
   } catch (error) {
     console.error("Service worker kaydedilemedi", error);
+  }
+}
+
+async function showLocalNotification(title, options) {
+  try {
+    const registration = state.serviceWorkerRegistration || (await navigator.serviceWorker?.ready);
+    if (registration?.showNotification) {
+      await registration.showNotification(title, options);
+      return;
+    }
+  } catch (error) {
+    console.error("Service worker bildirimi gösteremedi", error);
+  }
+
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification(title, options);
+  }
+}
+
+function syncAppBadge(count) {
+  if ("setAppBadge" in navigator && count > 0) {
+    navigator.setAppBadge(count).catch(() => {});
+    return;
+  }
+  if ("clearAppBadge" in navigator) {
+    navigator.clearAppBadge().catch(() => {});
   }
 }
 
@@ -1705,7 +1846,9 @@ function getRecordDisplayTitle(record) {
 function getRecordPriceLine(record) {
   if (isInstallment(record)) {
     const progress = getInstallmentProgress(record);
-    return `Aylık ${formatCurrency(record.monthlyInstallment)} · ${progress.displayInstallment}/${progress.totalInstallments} taksit`;
+    const displayAmount = state.displayMode === "yearly" ? record.monthlyInstallment * 12 : record.monthlyInstallment;
+    const prefix = state.displayMode === "yearly" ? "Yıllık eşdeğer" : "Aylık";
+    return `${prefix} ${formatCurrency(displayAmount)} · ${progress.displayInstallment}/${progress.totalInstallments} taksit`;
   }
   if (isTrialRecord(record)) {
     const trial = getTrialState(record);
@@ -1715,7 +1858,9 @@ function getRecordPriceLine(record) {
     }
     return `Ücretsiz deneme · ${trial.badge} · Sonrasında ${paidLine}`;
   }
-  return `${formatMoney(record.price, record.currency)} · ${cycleSuffix(record.billingCycle)}`;
+  const displayValue = state.displayMode === "yearly" ? calculateAnnualTl(record) : calculateMonthlyTl(record);
+  const displayLabel = state.displayMode === "yearly" ? "Yıllık eşdeğer" : "Aylık etki";
+  return `${displayLabel} ${formatCurrency(displayValue)} · ${formatMoney(record.price, record.currency)} ${cycleSuffix(record.billingCycle)}`;
 }
 
 function getRecordStats(record) {
@@ -1740,9 +1885,26 @@ function getRecordStats(record) {
   return [
     ["Aylık", formatCurrency(calculateMonthlyTl(record))],
     ["Yıllık", formatCurrency(calculateAnnualTl(record))],
-    ["Günlük", formatCurrency(calculateDailyTl(record))],
+    ["Kullanım başı", formatCurrency(calculateCostPerUse(record))],
+    ["Son fiyat", getLatestPriceHistoryLabel(record)],
     ["Sonraki", formatDate(record.nextPaymentDate)]
   ];
+}
+
+function calculateCostPerUse(record) {
+  if (isInstallment(record) || isTrialRecord(record)) {
+    return 0;
+  }
+  const denominator = { high: 20, medium: 8, low: 3, unused: 1 }[record.usageFrequency] || 4;
+  return calculateMonthlyTl(record) / denominator;
+}
+
+function getLatestPriceHistoryLabel(record) {
+  if (!record.priceHistory?.length) {
+    return "Yeni";
+  }
+  const last = record.priceHistory[0];
+  return `${formatMoney(last.amount, last.currency)} ${cycleSuffix(last.billingCycle)}`;
 }
 
 function getDefaultNotes(record) {
@@ -1828,16 +1990,23 @@ function renderRecordLogo(node, record) {
   const monogram = record.icon || guessMonogram(getRecordPrimaryName(record));
   const title = getRecordPrimaryName(record);
   const subtitle = isInstallment(record) ? "TR" : record.category;
-  const svgData = createLogoDataUri({
+  const localLogo = getLogoAssetPath(record);
+  img.src = localLogo || createLogoDataUri({
     label: monogram,
     color: record.color || getCategoryColor(record.category),
     title,
     subtitle
   });
-  img.src = svgData;
   img.classList.remove("hidden");
   img.alt = `${title} logosu`;
   fallback.classList.add("hidden");
+}
+
+function getLogoAssetPath(record) {
+  const key = slugifyLogoKey(getRecordPrimaryName(record));
+  const catalogMatch = state.catalog.find((item) => slugifyLogoKey(item.name) === key);
+  const slug = catalogMatch?.logo || key;
+  return KNOWN_LOGO_ASSETS[slug] || "";
 }
 
 function createLogoDataUri({ label, color, title, subtitle }) {
@@ -1869,6 +2038,37 @@ function guessMonogram(value) {
   }
   const parts = clean.split(/\s+/).filter(Boolean);
   return parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+const KNOWN_LOGO_ASSETS = {
+  netflix: "./assets/logos/netflix.svg",
+  spotify: "./assets/logos/spotify.svg",
+  youtubepremium: "./assets/logos/youtube-premium.svg",
+  disneyplus: "./assets/logos/disney-plus.svg",
+  amazonprime: "./assets/logos/amazon-prime.svg",
+  notion: "./assets/logos/notion.svg",
+  notionplus: "./assets/logos/notion.svg",
+  chatgpt: "./assets/logos/chatgpt.svg",
+  chatgptplus: "./assets/logos/chatgpt.svg",
+  claudepro: "./assets/logos/claude.svg",
+  adobecreativecloud: "./assets/logos/adobe.svg",
+  microsoft365: "./assets/logos/microsoft365.svg",
+  trendyol: "./assets/logos/trendyol.svg",
+  hepsiburada: "./assets/logos/hepsiburada.svg",
+  getir: "./assets/logos/getir.svg",
+  yemeksepeti: "./assets/logos/yemeksepeti.svg",
+  migros: "./assets/logos/migros.svg",
+  pazarama: "./assets/logos/pazarama.svg",
+  amazonturkiye: "./assets/logos/amazon-tr.svg",
+  n11: "./assets/logos/n11.svg"
+};
+
+function slugifyLogoKey(value) {
+  return String(value || "")
+    .toLocaleLowerCase("tr")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function formatCurrency(value) {
@@ -1989,6 +2189,163 @@ function getCategoryColor(category) {
   const palette = ["#0A66D9", "#13B7C9", "#0D9476", "#5CAEFF", "#325AD7", "#7BC4FF", "#0053A0"];
   const hash = Array.from(category || "").reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[hash % palette.length];
+}
+
+function getEmptyStateMarkup(icon, title, description) {
+  return `
+    <div class="empty-state-card">
+      <div class="empty-state-icon">${escapeHtml(icon)}</div>
+      <strong>${escapeHtml(title)}</strong>
+      <p>${escapeHtml(description)}</p>
+    </div>
+  `;
+}
+
+function compareRecords(sortValue, left, right) {
+  if (sortValue === "cost-desc") {
+    return calculateAnnualTl(right) - calculateAnnualTl(left);
+  }
+  if (sortValue === "next-payment") {
+    return getNextRelevantDate(left) - getNextRelevantDate(right);
+  }
+  if (sortValue === "category") {
+    return `${left.category}`.localeCompare(`${right.category}`, "tr");
+  }
+  return getRecordDisplayTitle(left).localeCompare(getRecordDisplayTitle(right), "tr");
+}
+
+function getNextRelevantDate(record) {
+  const source = isInstallment(record) ? getInstallmentProgress(record).nextDueDate : record.nextPaymentDate;
+  const date = new Date(source || "2999-12-31");
+  return Number.isNaN(date.getTime()) ? new Date("2999-12-31").getTime() : date.getTime();
+}
+
+function calculateMonthTotalRelative(offsetMonths) {
+  const base = new Date();
+  const targetYear = base.getFullYear();
+  const targetMonth = base.getMonth() + offsetMonths;
+  const date = new Date(targetYear, targetMonth, 1);
+  return sum(state.records.map((record) => getMonthlyOccurrenceTl(record, date.getFullYear(), date.getMonth())));
+}
+
+function renderUpcomingTimeline() {
+  const items = buildUpcomingTimelineItems();
+  dom.timelineList.innerHTML = "";
+  if (!items.length) {
+    dom.timelineList.innerHTML = getEmptyStateMarkup("◌", "Yaklaşan ödeme yok", "Önümüzdeki 30 gün için planlanmış bir ödeme görünmüyor.");
+    dom.timelineList.classList.add("empty-state");
+    return;
+  }
+  dom.timelineList.classList.remove("empty-state");
+  dom.timelineList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="timeline-item">
+          <div class="timeline-dot ${item.type}"></div>
+          <div class="timeline-copy">
+            <strong>${escapeHtml(item.title)}</strong>
+            <p>${escapeHtml(item.subtitle)}</p>
+          </div>
+          <div class="timeline-side">
+            <strong>${escapeHtml(item.dateLabel)}</strong>
+            <small>${escapeHtml(item.amountLabel)}</small>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function buildUpcomingTimelineItems() {
+  const today = stripTime(new Date());
+  const horizon = new Date(today);
+  horizon.setDate(horizon.getDate() + 30);
+  return state.records
+    .flatMap((record) => {
+      if (getRecordStatus(record) === "cancelled" || getRecordStatus(record) === "completed") {
+        return [];
+      }
+      if (isInstallment(record)) {
+        const progress = getInstallmentProgress(record);
+        if (!progress.nextDueDate) {
+          return [];
+        }
+        const dueDate = new Date(progress.nextDueDate);
+        if (dueDate < today || dueDate > horizon) {
+          return [];
+        }
+        return [{
+          title: `${record.merchant} · ${record.productName}`,
+          subtitle: "Taksit ödemesi",
+          amountLabel: formatCurrency(record.monthlyInstallment),
+          dateLabel: formatDate(progress.nextDueDate),
+          type: "installment",
+          date: dueDate.getTime()
+        }];
+      }
+
+      if (isTrialRecord(record)) {
+        return [];
+      }
+      const dueDate = new Date(record.nextPaymentDate);
+      if (dueDate < today || dueDate > horizon) {
+        return [];
+      }
+      return [{
+        title: record.name,
+        subtitle: `${record.category} · ${cycleSuffix(record.billingCycle)}`,
+        amountLabel: formatMoney(record.price, record.currency),
+        dateLabel: formatDate(record.nextPaymentDate),
+        type: "subscription",
+        date: dueDate.getTime()
+      }];
+    })
+    .sort((a, b) => a.date - b.date);
+}
+
+function setDisplayMode(mode) {
+  state.displayMode = mode === "yearly" ? "yearly" : "monthly";
+  window.localStorage.setItem("abonelik-view-mode", state.displayMode);
+  renderAll();
+}
+
+function updateViewModeControls() {
+  dom.monthlyViewBtn.classList.toggle("is-active", state.displayMode === "monthly");
+  dom.yearlyViewBtn.classList.toggle("is-active", state.displayMode === "yearly");
+}
+
+function maybeShowOnboarding() {
+  const seen = window.localStorage.getItem("abonelik-onboarding-seen");
+  if (seen) {
+    return;
+  }
+  state.onboardingStep = 0;
+  renderOnboardingStep();
+  dom.onboardingDialog.showModal();
+  syncSheetState();
+}
+
+function renderOnboardingStep() {
+  const step = ONBOARDING_STEPS[state.onboardingStep] || ONBOARDING_STEPS[0];
+  dom.onboardingIcon.textContent = step.icon;
+  dom.onboardingTitle.textContent = step.title;
+  dom.onboardingBody.textContent = step.body;
+  dom.nextOnboardingBtn.textContent = state.onboardingStep === ONBOARDING_STEPS.length - 1 ? "Başla" : "Devam";
+}
+
+function advanceOnboarding() {
+  if (state.onboardingStep >= ONBOARDING_STEPS.length - 1) {
+    completeOnboarding();
+    return;
+  }
+  state.onboardingStep += 1;
+  renderOnboardingStep();
+}
+
+function completeOnboarding() {
+  window.localStorage.setItem("abonelik-onboarding-seen", "1");
+  dom.onboardingDialog.close();
+  syncSheetState();
 }
 
 function showToast(message) {

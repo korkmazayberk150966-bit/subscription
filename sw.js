@@ -1,4 +1,4 @@
-const CACHE_NAME = "abonelik-takibi-v3";
+const CACHE_NAME = "abonelik-takibi-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,12 +13,46 @@ const APP_SHELL = [
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/icon.svg",
-  "./assets/icons/icon-maskable.svg"
+  "./assets/icons/icon-maskable.svg",
+  "./assets/logos/netflix.svg",
+  "./assets/logos/spotify.svg",
+  "./assets/logos/youtube-premium.svg",
+  "./assets/logos/disney-plus.svg",
+  "./assets/logos/amazon-prime.svg",
+  "./assets/logos/notion.svg",
+  "./assets/logos/chatgpt.svg",
+  "./assets/logos/claude.svg",
+  "./assets/logos/adobe.svg",
+  "./assets/logos/microsoft365.svg",
+  "./assets/logos/trendyol.svg",
+  "./assets/logos/hepsiburada.svg",
+  "./assets/logos/getir.svg",
+  "./assets/logos/yemeksepeti.svg",
+  "./assets/logos/migros.svg",
+  "./assets/logos/pazarama.svg",
+  "./assets/logos/amazon-tr.svg",
+  "./assets/logos/n11.svg"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const focused = clientList.find((client) => "focus" in client);
+      if (focused) {
+        return focused.focus();
+      }
+      if (clients.openWindow) {
+        return clients.openWindow("./");
+      }
+      return undefined;
+    })
   );
 });
 

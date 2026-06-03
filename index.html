@@ -28,9 +28,7 @@
               <h1 id="appHeaderTitle" class="app-header-title">Özet</h1>
             </div>
           </div>
-          <div class="app-header-actions">
-            <button id="headerAddBtn" class="icon-pill icon-pill-primary" type="button" aria-label="Abonelik ekle">+</button>
-          </div>
+          <div class="app-header-actions"></div>
         </div>
       </header>
 
@@ -40,11 +38,14 @@
             <div class="hero-top">
               <div>
                 <p class="eyebrow">Abonelik & Maliyet Takip</p>
-                <h2 class="hero-title">Bu Ay Toplam</h2>
+                <h2 id="heroTitle" class="hero-title">Bu Ay Toplam</h2>
                 <p class="hero-amount" id="monthlyTotal">0 TL</p>
               </div>
               <div class="hero-actions">
-                <button id="addSubscriptionBtn" class="primary-button" type="button">Yeni abonelik</button>
+                <div class="view-toggle" role="tablist" aria-label="Tutar görünümü">
+                  <button id="monthlyViewBtn" class="view-toggle-button is-active" type="button">Aylık</button>
+                  <button id="yearlyViewBtn" class="view-toggle-button" type="button">Yıllık</button>
+                </div>
               </div>
             </div>
             <div class="hero-metrics">
@@ -72,6 +73,10 @@
                 <span>Aktif denemeler</span>
                 <strong id="monthlyTrialsCount">0</strong>
               </article>
+              <article>
+                <span>Geçen aya göre</span>
+                <strong id="monthlyDelta">0%</strong>
+              </article>
             </div>
             <div id="installBanner" class="install-banner hidden">
               <div>
@@ -91,6 +96,17 @@
               <span id="alertBadge" class="badge">0</span>
             </div>
             <div id="alertsList" class="alert-stack empty-state"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">Takvim</p>
+                <h2>Önümüzdeki 30 Gün</h2>
+                <p>Yaklaşan ödeme ve taksit çizelgesi</p>
+              </div>
+            </div>
+            <div id="timelineList" class="timeline-list empty-state"></div>
           </section>
         </section>
 
@@ -117,6 +133,15 @@
                 <label>
                   <span>Ara</span>
                   <input id="searchInput" type="search" placeholder="Netflix, iCloud..." />
+                </label>
+                <label>
+                  <span>Sırala</span>
+                  <select id="sortFilter">
+                    <option value="name">Ada göre</option>
+                    <option value="cost-desc">En pahalı</option>
+                    <option value="next-payment">Sonraki ödeme</option>
+                    <option value="category">Kategori</option>
+                  </select>
                 </label>
               </div>
             </div>
@@ -251,6 +276,7 @@
               <div class="settings-actions">
                 <button class="primary-button" type="submit">Ayarları Kaydet</button>
                 <button id="requestNotificationBtn" class="ghost-button" type="button">Bildirim İzni İste</button>
+                <button id="testNotificationBtn" class="ghost-button" type="button">Test Bildirimi</button>
               </div>
             </form>
 
@@ -508,6 +534,28 @@
           <button class="primary-button" type="submit">Ödeme Kaydet</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="onboardingDialog" class="app-dialog app-dialog-centered">
+      <div class="dialog-form narrow onboarding-shell">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Hoş Geldin</p>
+            <h2 id="onboardingTitle">Harcamalarını tek yerde tut</h2>
+          </div>
+        </div>
+        <div class="onboarding-card">
+          <div id="onboardingIcon" class="onboarding-icon">✦</div>
+          <p id="onboardingBody" class="onboarding-body">
+            Aboneliklerini, taksitlerini ve denemelerini aynı uygulamada sakin bir şekilde takip et.
+          </p>
+        </div>
+        <div class="dialog-actions">
+          <button id="skipOnboardingBtn" class="ghost-button" type="button">Geç</button>
+          <button id="nextOnboardingBtn" class="primary-button" type="button">Devam</button>
+        </div>
+      </div>
     </dialog>
 
     <template id="subscriptionCardTemplate">
