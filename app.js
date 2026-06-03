@@ -716,8 +716,8 @@ async function refreshLiveRates() {
 
   try {
     const [usdResponse, eurResponse] = await Promise.all([
-      fetch("https://api.frankfurter.app/latest?from=USD&to=TRY"),
-      fetch("https://api.frankfurter.app/latest?from=EUR&to=TRY")
+      fetch("https://open.er-api.com/v6/latest/USD"),
+      fetch("https://open.er-api.com/v6/latest/EUR")
     ]);
 
     if (!usdResponse.ok || !eurResponse.ok) {
@@ -725,6 +725,10 @@ async function refreshLiveRates() {
     }
 
     const [usdData, eurData] = await Promise.all([usdResponse.json(), eurResponse.json()]);
+    if (usdData?.result !== "success" || eurData?.result !== "success") {
+      throw new Error("Kur servisi geçerli veri döndürmedi");
+    }
+
     const usdRate = Number(usdData?.rates?.TRY || 0);
     const eurRate = Number(eurData?.rates?.TRY || 0);
 
@@ -735,7 +739,7 @@ async function refreshLiveRates() {
     state.settings.usdRate = roundMoney(usdRate);
     state.settings.eurRate = roundMoney(eurRate);
     state.settings.lastRateSync = new Date().toISOString();
-    state.settings.lastRateSource = "frankfurter";
+    state.settings.lastRateSource = "open-er-api";
 
     await putRecord("settings", state.settings);
     populateSettingsForm();
@@ -804,7 +808,7 @@ function updateRatesMeta() {
     dom.ratesMeta.textContent = "Son güncelleme: Henüz çekilmedi";
     return;
   }
-  const sourceLabel = state.settings.lastRateSource === "frankfurter" ? "Frankfurter" : "manuel";
+  const sourceLabel = state.settings.lastRateSource === "open-er-api" ? "Open ER API" : "manuel";
   dom.ratesMeta.textContent = `Son güncelleme: ${formatDateTime(state.settings.lastRateSync)} · Kaynak: ${sourceLabel}`;
 }
 

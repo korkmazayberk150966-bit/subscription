@@ -25,8 +25,8 @@
   --radius-lg: 24px;
   --radius-md: 18px;
   --radius-sm: 14px;
-  --font-sans: "Hanken Grotesk", "Segoe UI", sans-serif;
-  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-sans: "Roboto", "Segoe UI", sans-serif;
+  --font-serif: "Roboto", "Segoe UI", sans-serif;
 }
 
 * {
