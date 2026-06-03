@@ -8,6 +8,12 @@
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="assets/icons/icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;700&family=Source+Serif+4:wght@400;700&display=swap"
+    />
     <link rel="stylesheet" href="style.css" />
     <title>Abonelik Takibi</title>
   </head>
@@ -210,6 +216,10 @@
                 <span>EUR kuru</span>
                 <input name="eurRate" type="number" min="0" step="0.01" />
               </label>
+              <div class="rate-tools full-width">
+                <button id="refreshRatesBtn" class="ghost-button" type="button">Canlı kuru çek</button>
+                <p id="ratesMeta" class="rates-meta">Son güncelleme: Henüz çekilmedi</p>
+              </div>
               <label>
                 <span>Yenileme uyarısı (gün)</span>
                 <input name="renewalReminderDays" type="number" min="0" step="1" />

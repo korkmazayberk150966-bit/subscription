@@ -13,6 +13,8 @@ const DEFAULT_SETTINGS = {
   notificationsEnabled: false,
   darkModePreferred: false,
   theme: "light",
+  lastRateSync: "",
+  lastRateSource: "manual",
   notifiedAlerts: {}
 };
 
@@ -82,6 +84,8 @@ const dom = {
   subscriptionsList: $("#subscriptionsList"),
   paymentsList: $("#paymentsList"),
   settingsForm: $("#settingsForm"),
+  refreshRatesBtn: $("#refreshRatesBtn"),
+  ratesMeta: $("#ratesMeta"),
   requestNotificationBtn: $("#requestNotificationBtn"),
   exportBtn: $("#exportBtn"),
   importInput: $("#importInput"),
@@ -280,6 +284,7 @@ function bindEvents() {
   dom.subscriptionForm.addEventListener("submit", handleRecordSubmit);
   dom.paymentForm.addEventListener("submit", handlePaymentSubmit);
   dom.settingsForm.addEventListener("submit", handleSettingsSubmit);
+  dom.refreshRatesBtn.addEventListener("click", refreshLiveRates);
   dom.requestNotificationBtn.addEventListener("click", requestNotificationPermission);
   dom.exportBtn.addEventListener("click", exportData);
   dom.importInput.addEventListener("change", importData);
@@ -369,6 +374,7 @@ function populateSettingsForm() {
       field.value = value;
     }
   });
+  updateRatesMeta();
 }
 
 function resetRecordForm() {
@@ -704,6 +710,47 @@ async function handleSettingsSubmit(event) {
   showToast("Ayarlar kaydedildi.");
 }
 
+async function refreshLiveRates() {
+  dom.refreshRatesBtn.disabled = true;
+  dom.refreshRatesBtn.textContent = "Kur çekiliyor...";
+
+  try {
+    const [usdResponse, eurResponse] = await Promise.all([
+      fetch("https://api.frankfurter.app/latest?from=USD&to=TRY"),
+      fetch("https://api.frankfurter.app/latest?from=EUR&to=TRY")
+    ]);
+
+    if (!usdResponse.ok || !eurResponse.ok) {
+      throw new Error("Kur servisi yanıt vermedi");
+    }
+
+    const [usdData, eurData] = await Promise.all([usdResponse.json(), eurResponse.json()]);
+    const usdRate = Number(usdData?.rates?.TRY || 0);
+    const eurRate = Number(eurData?.rates?.TRY || 0);
+
+    if (!usdRate || !eurRate) {
+      throw new Error("Kur verisi eksik geldi");
+    }
+
+    state.settings.usdRate = roundMoney(usdRate);
+    state.settings.eurRate = roundMoney(eurRate);
+    state.settings.lastRateSync = new Date().toISOString();
+    state.settings.lastRateSource = "frankfurter";
+
+    await putRecord("settings", state.settings);
+    populateSettingsForm();
+    renderAll();
+    showToast("Canlı kurlar güncellendi.");
+  } catch (error) {
+    console.error(error);
+    showToast("Canlı kur çekilemedi. Mevcut değerler korunuyor.");
+  } finally {
+    dom.refreshRatesBtn.disabled = false;
+    dom.refreshRatesBtn.textContent = "Canlı kuru çek";
+    updateRatesMeta();
+  }
+}
+
 function handleCatalogSelection() {
   const selected = state.catalog.find((item) => item.name === dom.catalogSelect.value);
   if (!selected) {
@@ -747,6 +794,18 @@ function renderAll() {
   populateSettingsForm();
   updateHeaderForTab();
   updateFabVisibility();
+}
+
+function updateRatesMeta() {
+  if (!dom.ratesMeta) {
+    return;
+  }
+  if (!state.settings.lastRateSync) {
+    dom.ratesMeta.textContent = "Son güncelleme: Henüz çekilmedi";
+    return;
+  }
+  const sourceLabel = state.settings.lastRateSource === "frankfurter" ? "Frankfurter" : "manuel";
+  dom.ratesMeta.textContent = `Son güncelleme: ${formatDateTime(state.settings.lastRateSync)} · Kaynak: ${sourceLabel}`;
 }
 
 function renderOverview() {
@@ -1642,6 +1701,16 @@ function formatDate(value) {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Belirtilmedi" : date.toLocaleDateString("tr-TR");
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Bilinmiyor"
+    : date.toLocaleString("tr-TR", {
+        dateStyle: "short",
+        timeStyle: "short"
+      });
 }
 
 function cycleSuffix(cycle) {

@@ -1,35 +1,3 @@
-@font-face {
-  font-family: "App Sans";
-  src: url("./assets/fonts/HankenGrotesk-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "App Sans";
-  src: url("./assets/fonts/HankenGrotesk-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "App Serif";
-  src: url("./assets/fonts/SourceSerif4-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "App Serif";
-  src: url("./assets/fonts/SourceSerif4-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   color-scheme: light;
   --bg: #f4f8fe;
@@ -57,8 +25,8 @@
   --radius-lg: 24px;
   --radius-md: 18px;
   --radius-sm: 14px;
-  --font-sans: "App Sans", "Segoe UI", sans-serif;
-  --font-serif: "App Serif", Georgia, serif;
+  --font-sans: "Hanken Grotesk", "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
 }
 
 * {
@@ -484,9 +452,27 @@ textarea:focus {
 }
 
 .settings-grid .settings-actions,
+.settings-grid .rate-tools,
 .form-grid .full-width,
 .notes-field {
   grid-column: 1 / -1;
+}
+
+.rate-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--surface-muted);
+  border: 1px solid var(--surface-border);
+}
+
+.rates-meta {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--muted);
 }
 
 .checkbox-row {
@@ -973,5 +959,10 @@ textarea:focus {
 
   .bottom-nav {
     width: calc(100% - 16px);
+  }
+
+  .rate-tools {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
