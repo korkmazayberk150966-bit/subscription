@@ -19,22 +19,24 @@ const DEFAULT_SETTINGS = {
 const STATUS_LABELS = {
   active: "Aktif",
   trial: "Deneme",
-  paused: "Duraklatildi",
-  cancelled: "Iptal"
+  paused: "Duraklatıldı",
+  cancelled: "İptal",
+  completed: "Tamamlandı"
 };
 
 const STATUS_COLORS = {
   active: "var(--success)",
   trial: "var(--warning)",
   paused: "var(--accent)",
-  cancelled: "var(--danger)"
+  cancelled: "var(--danger)",
+  completed: "var(--muted)"
 };
 
 const CYCLE_LABELS = {
-  weekly: "Haftalik",
-  monthly: "Aylik",
-  quarterly: "3 Aylik",
-  yearly: "Yillik"
+  weekly: "Haftalık",
+  monthly: "Aylık",
+  quarterly: "3 aylık",
+  yearly: "Yıllık"
 };
 
 const USAGE_SCORES = {
@@ -47,22 +49,27 @@ const USAGE_SCORES = {
 const state = {
   db: null,
   catalog: [],
-  subscriptions: [],
+  records: [],
   payments: [],
   archives: [],
   settings: { ...DEFAULT_SETTINGS },
   editingId: null,
   deferredPrompt: null,
-  activePaymentSubscriptionId: null
+  activePaymentSubscriptionId: null,
+  activeTab: "overview"
 };
 
 const $ = (selector) => document.querySelector(selector);
 
 const dom = {
   monthlyTotal: $("#monthlyTotal"),
+  monthlySubscriptionsTotal: $("#monthlySubscriptionsTotal"),
+  monthlyInstallmentsTotal: $("#monthlyInstallmentsTotal"),
   yearlyProjection: $("#yearlyProjection"),
   budgetStatus: $("#budgetStatus"),
   upcomingCount: $("#upcomingCount"),
+  appHeaderTitle: $("#appHeaderTitle"),
+  appHeaderMeta: $("#appHeaderMeta"),
   alertBadge: $("#alertBadge"),
   alertsList: $("#alertsList"),
   categoryLegendSummary: $("#categoryLegendSummary"),
@@ -81,6 +88,8 @@ const dom = {
   statusFilter: $("#statusFilter"),
   searchInput: $("#searchInput"),
   addSubscriptionBtn: $("#addSubscriptionBtn"),
+  headerAddBtn: $("#headerAddBtn"),
+  fabAddBtn: $("#fabAddBtn"),
   quickLogBtn: $("#quickLogBtn"),
   themeToggle: $("#themeToggle"),
   installBanner: $("#installBanner"),
@@ -91,14 +100,24 @@ const dom = {
   closeDialogBtn: $("#closeDialogBtn"),
   resetFormBtn: $("#resetFormBtn"),
   archiveBtn: $("#archiveBtn"),
+  recordTypeSelect: $("#recordTypeSelect"),
   catalogSelect: $("#catalogSelect"),
+  subscriptionFields: $("#subscriptionFields"),
+  installmentFields: $("#installmentFields"),
   paymentDialog: $("#paymentDialog"),
   paymentForm: $("#paymentForm"),
   paymentSubscriptionSelect: $("#paymentSubscriptionSelect"),
   closePaymentDialogBtn: $("#closePaymentDialogBtn"),
   categoryChart: $("#categoryChart"),
   trendChart: $("#trendChart"),
-  subscriptionCardTemplate: $("#subscriptionCardTemplate")
+  subscriptionCardTemplate: $("#subscriptionCardTemplate"),
+  detailPreviewCard: $("#detailPreviewCard"),
+  detailPreviewLogo: $("#detailPreviewLogo"),
+  detailPreviewType: $("#detailPreviewType"),
+  detailPreviewTitle: $("#detailPreviewTitle"),
+  detailPreviewPrice: $("#detailPreviewPrice"),
+  tabButtons: Array.from(document.querySelectorAll(".tab-button")),
+  tabPanels: Array.from(document.querySelectorAll("[data-tab-panel]"))
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -112,6 +131,7 @@ async function init() {
   populateSettingsForm();
   populatePaymentSubscriptions();
   renderAll();
+  setActiveTab(state.activeTab);
   maybeShowInstallHint();
   await registerServiceWorker();
   maybeSendNotifications();
@@ -122,7 +142,7 @@ async function loadCatalog() {
     const response = await fetch("./data/catalog.json");
     state.catalog = await response.json();
   } catch (error) {
-    console.error("Katalog yuklenemedi", error);
+    console.error("Katalog yüklenemedi", error);
     state.catalog = [];
   }
 }
@@ -130,7 +150,6 @@ async function loadCatalog() {
 function initDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-
     request.onupgradeneeded = () => {
       const db = request.result;
       STORE_NAMES.forEach((storeName) => {
@@ -139,25 +158,25 @@ function initDatabase() {
         }
       });
     };
-
     request.onsuccess = () => {
       state.db = request.result;
       resolve();
     };
-
     request.onerror = () => reject(request.error);
   });
 }
 
 async function loadState() {
-  const [subscriptions, payments, archives, settings] = await Promise.all([
+  const [records, payments, archives, settings] = await Promise.all([
     getAll("subscriptions"),
     getAll("payments"),
     getAll("archives"),
     getRecord("settings", DEFAULT_SETTINGS.id)
   ]);
 
-  state.subscriptions = subscriptions.sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  state.records = records
+    .map(normalizeRecord)
+    .sort((a, b) => getRecordPrimaryName(a).localeCompare(getRecordPrimaryName(b), "tr"));
   state.payments = payments.sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
   state.archives = archives.sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt));
   state.settings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
@@ -165,6 +184,49 @@ async function loadState() {
   if (!settings) {
     await putRecord("settings", state.settings);
   }
+}
+
+function normalizeRecord(record) {
+  const base = {
+    recordType: "subscription",
+    logoMode: "monogram",
+    category: "",
+    notes: "",
+    status: "active",
+    color: "#0A66D9",
+    icon: "",
+    name: "",
+    paymentMethod: "",
+    lastUsedDate: "",
+    trialEndDate: "",
+    usageFrequency: "medium",
+    valueScore: 3,
+    isPriceIncreased: false
+  };
+  const normalized = { ...base, ...record };
+  if (normalized.recordType === "installment") {
+    normalized.merchant = normalized.merchant || normalized.name || "";
+    normalized.productName = normalized.productName || "";
+    normalized.category = normalized.category || normalized.installmentCategory || "Taksitli Alışveriş";
+    normalized.notes = normalized.notes || normalized.installmentNotes || "";
+    normalized.totalAmount = Number(normalized.totalAmount || 0);
+    normalized.monthlyInstallment = Number(normalized.monthlyInstallment || 0);
+    normalized.totalInstallments = Number(normalized.totalInstallments || 0);
+    normalized.startDate = normalized.startDate || normalized.nextPaymentDate || todayIso();
+    normalized.currency = normalized.currency || "TRY";
+    normalized.color = normalized.color || normalized.installmentColor || "#0A66D9";
+    normalized.icon = normalized.icon || guessMonogram(normalized.merchant || normalized.productName || "T");
+    normalized.paymentMethod = normalized.paymentMethod || "Kart";
+    normalized.valueScore = 3;
+    normalized.usageFrequency = "medium";
+  } else {
+    normalized.price = Number(normalized.price || 0);
+    normalized.currency = normalized.currency || "TRY";
+    normalized.billingCycle = normalized.billingCycle || "monthly";
+    normalized.nextPaymentDate = normalized.nextPaymentDate || todayIso();
+    normalized.icon = normalized.icon || guessMonogram(normalized.name || "A");
+  }
+  return normalized;
 }
 
 function getAll(storeName) {
@@ -208,24 +270,35 @@ function clearStore(storeName) {
 }
 
 function bindEvents() {
-  dom.addSubscriptionBtn.addEventListener("click", () => openSubscriptionDialog());
+  dom.addSubscriptionBtn.addEventListener("click", () => openRecordDialog());
+  dom.headerAddBtn.addEventListener("click", () => openRecordDialog());
+  dom.fabAddBtn.addEventListener("click", () => openRecordDialog());
   dom.quickLogBtn.addEventListener("click", () => openPaymentDialog());
   dom.closeDialogBtn.addEventListener("click", () => dom.subscriptionDialog.close());
   dom.closePaymentDialogBtn.addEventListener("click", () => dom.paymentDialog.close());
-  dom.resetFormBtn.addEventListener("click", resetSubscriptionForm);
-  dom.archiveBtn.addEventListener("click", handleArchiveCurrentSubscription);
-  dom.subscriptionForm.addEventListener("submit", handleSubscriptionSubmit);
+  dom.resetFormBtn.addEventListener("click", resetRecordForm);
+  dom.archiveBtn.addEventListener("click", handleArchiveCurrentRecord);
+  dom.subscriptionForm.addEventListener("submit", handleRecordSubmit);
   dom.paymentForm.addEventListener("submit", handlePaymentSubmit);
   dom.settingsForm.addEventListener("submit", handleSettingsSubmit);
   dom.requestNotificationBtn.addEventListener("click", requestNotificationPermission);
   dom.exportBtn.addEventListener("click", exportData);
   dom.importInput.addEventListener("change", importData);
-  dom.statusFilter.addEventListener("change", renderSubscriptions);
-  dom.searchInput.addEventListener("input", renderSubscriptions);
+  dom.statusFilter.addEventListener("change", renderRecords);
+  dom.searchInput.addEventListener("input", renderRecords);
   dom.themeToggle.addEventListener("click", toggleTheme);
   dom.catalogSelect.addEventListener("change", handleCatalogSelection);
+  dom.recordTypeSelect.addEventListener("change", syncFormMode);
   dom.paymentSubscriptionSelect.addEventListener("change", autoFillPaymentAmount);
   dom.installBtn.addEventListener("click", triggerInstallPrompt);
+  dom.subscriptionForm.addEventListener("input", handleFormLiveUpdates);
+  dom.tabButtons.forEach((button) => {
+    button.addEventListener("click", () => setActiveTab(button.dataset.tabTarget));
+  });
+  [dom.subscriptionDialog, dom.paymentDialog].forEach((dialog) => {
+    dialog.addEventListener("close", syncSheetState);
+    dialog.addEventListener("cancel", syncSheetState);
+  });
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -238,21 +311,19 @@ function bindEvents() {
     if (!button) {
       return;
     }
-
     const card = button.closest(".subscription-card");
     const { id } = card.dataset;
     const action = button.dataset.action;
-    const subscription = state.subscriptions.find((item) => item.id === id);
-    if (!subscription) {
+    const record = state.records.find((item) => item.id === id);
+    if (!record) {
       return;
     }
-
     if (action === "edit") {
-      openSubscriptionDialog(subscription);
+      openRecordDialog(record);
     } else if (action === "log") {
-      openPaymentDialog(subscription.id);
+      openPaymentDialog(record.id);
     } else if (action === "delete") {
-      await handleDeleteSubscription(subscription);
+      await handleDeleteRecord(record);
     }
   });
 }
@@ -268,33 +339,29 @@ function populateCatalogSelect() {
 }
 
 function populatePaymentSubscriptions() {
-  const currentValue = state.activePaymentSubscriptionId || state.subscriptions[0]?.id || "";
+  const currentValue = state.activePaymentSubscriptionId || state.records[0]?.id || "";
   dom.paymentSubscriptionSelect.innerHTML = "";
-  if (!state.subscriptions.length) {
+  if (!state.records.length) {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "Once abonelik ekle";
+    option.textContent = "Önce kayıt ekle";
     dom.paymentSubscriptionSelect.append(option);
     return;
   }
 
-  state.subscriptions.forEach((subscription) => {
+  state.records.forEach((record) => {
     const option = document.createElement("option");
-    option.value = subscription.id;
-    option.textContent = subscription.name;
-    if (subscription.id === currentValue) {
-      option.selected = true;
-    }
+    option.value = record.id;
+    option.textContent = `${getRecordPrimaryName(record)}${isInstallment(record) ? " · taksit" : ""}`;
+    option.selected = record.id === currentValue;
     dom.paymentSubscriptionSelect.append(option);
   });
-
   autoFillPaymentAmount();
 }
 
 function populateSettingsForm() {
-  const { settingsForm } = dom;
   Object.entries(state.settings).forEach(([key, value]) => {
-    const field = settingsForm.elements.namedItem(key);
+    const field = dom.settingsForm.elements.namedItem(key);
     if (!field) {
       return;
     }
@@ -306,44 +373,67 @@ function populateSettingsForm() {
   });
 }
 
-function resetSubscriptionForm() {
+function resetRecordForm() {
   dom.subscriptionForm.reset();
-  dom.subscriptionForm.elements.namedItem("currency").value = "TRY";
-  dom.subscriptionForm.elements.namedItem("billingCycle").value = "monthly";
-  dom.subscriptionForm.elements.namedItem("status").value = "active";
-  dom.subscriptionForm.elements.namedItem("valueScore").value = "3";
-  dom.subscriptionForm.elements.namedItem("usageFrequency").value = "medium";
-  dom.subscriptionForm.elements.namedItem("color").value = "#0A66D9";
-  dom.subscriptionForm.elements.namedItem("icon").value = "A";
-  dom.subscriptionForm.elements.namedItem("nextPaymentDate").value = todayIso();
+  dom.recordTypeSelect.value = "subscription";
+  setFieldValue("currency", "TRY");
+  setFieldValue("billingCycle", "monthly");
+  setFieldValue("status", "active");
+  setFieldValue("valueScore", "3");
+  setFieldValue("usageFrequency", "medium");
+  setFieldValue("color", "#0A66D9");
+  setFieldValue("installmentColor", "#0A66D9");
+  setFieldValue("icon", "A");
+  setFieldValue("nextPaymentDate", todayIso());
+  setFieldValue("startDate", todayIso());
+  setFieldValue("installmentCategory", "Taksitli Alışveriş");
   dom.catalogSelect.value = "";
+  syncFormMode();
+  updateDetailPreview();
 }
 
-function openSubscriptionDialog(subscription = null) {
-  state.editingId = subscription?.id || null;
-  dom.dialogTitle.textContent = subscription ? "Aboneligi Duzenle" : "Yeni Abonelik";
-  dom.archiveBtn.classList.toggle("hidden", !subscription);
-  resetSubscriptionForm();
+function openRecordDialog(record = null) {
+  state.editingId = record?.id || null;
+  dom.dialogTitle.textContent = record ? "Kaydı Düzenle" : "Yeni Kayıt";
+  dom.archiveBtn.classList.toggle("hidden", !record);
+  resetRecordForm();
 
-  if (subscription) {
-    setFormValues(dom.subscriptionForm, subscription);
+  if (record) {
+    if (isInstallment(record)) {
+      setFieldValue("recordType", "installment");
+      setFieldValue("merchant", record.merchant);
+      setFieldValue("productName", record.productName);
+      setFieldValue("totalAmount", record.totalAmount || "");
+      setFieldValue("monthlyInstallment", record.monthlyInstallment || "");
+      setFieldValue("totalInstallments", record.totalInstallments || "");
+      setFieldValue("startDate", record.startDate || "");
+      setFieldValue("installmentCategory", record.category || "");
+      setFieldValue("installmentColor", record.color || "#0A66D9");
+      setFieldValue("installmentNotes", record.notes || "");
+    } else {
+      setFieldValue("recordType", "subscription");
+      setFormValues(dom.subscriptionForm, record);
+    }
   }
 
+  syncFormMode();
+  updateDetailPreview();
   dom.subscriptionDialog.showModal();
+  syncSheetState();
 }
 
-function openPaymentDialog(subscriptionId = null) {
-  if (!state.subscriptions.length) {
-    showToast("Odeme kaydi icin once abonelik eklemelisin.");
+function openPaymentDialog(recordId = null) {
+  if (!state.records.length) {
+    showToast("Ödeme kaydı için önce bir kayıt eklemelisin.");
     return;
   }
-
   dom.paymentForm.reset();
-  state.activePaymentSubscriptionId = subscriptionId || state.subscriptions[0].id;
+  state.activePaymentSubscriptionId = recordId || state.records[0].id;
   populatePaymentSubscriptions();
-  dom.paymentForm.elements.namedItem("paidAt").value = todayIso();
+  setFieldValue("paidAt", todayIso(), dom.paymentForm);
   autoFillPaymentAmount();
   dom.paymentDialog.showModal();
+  syncSheetState();
 }
 
 function setFormValues(form, values) {
@@ -360,120 +450,238 @@ function setFormValues(form, values) {
   });
 }
 
-async function handleSubscriptionSubmit(event) {
-  event.preventDefault();
-  const formData = new FormData(dom.subscriptionForm);
-  const existing = state.subscriptions.find((item) => item.id === state.editingId);
-
-  const subscription = {
-    id: existing?.id || createId("sub"),
-    name: normalizeText(formData.get("name")),
-    price: Number(formData.get("price")),
-    currency: formData.get("currency"),
-    billingCycle: formData.get("billingCycle"),
-    nextPaymentDate: formData.get("nextPaymentDate"),
-    category: normalizeText(formData.get("category")),
-    paymentMethod: normalizeText(formData.get("paymentMethod")),
-    status: formData.get("status"),
-    color: formData.get("color"),
-    icon: normalizeText(formData.get("icon")).slice(0, 2) || "A",
-    notes: normalizeText(formData.get("notes")),
-    valueScore: Number(formData.get("valueScore") || 3),
-    lastUsedDate: formData.get("lastUsedDate") || "",
-    usageFrequency: formData.get("usageFrequency") || "medium",
-    isPriceIncreased: formData.get("isPriceIncreased") === "on",
-    trialEndDate: formData.get("trialEndDate") || "",
-    createdAt: existing?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  if (!subscription.name || !subscription.category || !subscription.nextPaymentDate || Number.isNaN(subscription.price)) {
-    showToast("Lutfen zorunlu alanlari doldur.");
+function setFieldValue(name, value, form = dom.subscriptionForm) {
+  const field = form.elements.namedItem(name);
+  if (!field) {
     return;
   }
+  if (field.type === "checkbox") {
+    field.checked = Boolean(value);
+  } else {
+    field.value = value;
+  }
+}
 
-  await putRecord("subscriptions", subscription);
+function handleFormLiveUpdates(event) {
+  if (dom.recordTypeSelect.value === "installment") {
+    const totalInstallments = Number(getFieldValue("totalInstallments")) || 0;
+    if (event.target.name === "totalAmount" && totalInstallments) {
+      const total = Number(getFieldValue("totalAmount")) || 0;
+      if (total > 0) {
+        setFieldValue("monthlyInstallment", (total / totalInstallments).toFixed(2));
+      }
+    }
+    if (event.target.name === "monthlyInstallment" && totalInstallments) {
+      const monthly = Number(getFieldValue("monthlyInstallment")) || 0;
+      if (monthly > 0) {
+        setFieldValue("totalAmount", (monthly * totalInstallments).toFixed(2));
+      }
+    }
+  }
+  updateDetailPreview();
+}
+
+function getFieldValue(name, form = dom.subscriptionForm) {
+  return form.elements.namedItem(name)?.value || "";
+}
+
+function syncFormMode() {
+  const installmentMode = dom.recordTypeSelect.value === "installment";
+  dom.subscriptionFields.classList.toggle("hidden", installmentMode);
+  dom.installmentFields.classList.toggle("hidden", !installmentMode);
+  updateDetailPreview();
+}
+
+function updateDetailPreview() {
+  if (!dom.detailPreviewCard) {
+    return;
+  }
+  const installmentMode = dom.recordTypeSelect.value === "installment";
+  const title = installmentMode ? getFieldValue("merchant") || "Taksitli kayıt" : getFieldValue("name") || "Abonelik";
+  const product = getFieldValue("productName");
+  const color = installmentMode ? getFieldValue("installmentColor") || "#0A66D9" : getFieldValue("color") || "#0A66D9";
+  const monogram = installmentMode ? guessMonogram(title) : getFieldValue("icon") || guessMonogram(title);
+  const priceLine = installmentMode
+    ? buildInstallmentPreviewLine()
+    : buildSubscriptionPreviewLine();
+
+  const logoSvg = createLogoDataUri({ label: monogram, color, title, subtitle: installmentMode ? "TAKSİT" : "ABONE" });
+  dom.detailPreviewLogo.style.background = color;
+  dom.detailPreviewLogo.innerHTML = `<img src="${logoSvg}" alt="" />`;
+  dom.detailPreviewType.textContent = installmentMode ? "Taksitli alışveriş" : "Abonelik";
+  dom.detailPreviewTitle.textContent = product ? `${title} · ${product}` : title;
+  dom.detailPreviewPrice.textContent = priceLine;
+}
+
+function buildSubscriptionPreviewLine() {
+  const amount = Number(getFieldValue("price")) || 0;
+  const currency = getFieldValue("currency") || "TRY";
+  const cycle = CYCLE_LABELS[getFieldValue("billingCycle")] || "Aylık";
+  return amount ? `${formatMoney(amount, currency)} · ${cycle}` : "0 TL";
+}
+
+function buildInstallmentPreviewLine() {
+  const monthly = Number(getFieldValue("monthlyInstallment")) || 0;
+  const total = Number(getFieldValue("totalAmount")) || 0;
+  const count = Number(getFieldValue("totalInstallments")) || 0;
+  if (monthly && count) {
+    return `${formatMoney(monthly, "TRY")} · ${count} taksit`;
+  }
+  if (total && count) {
+    return `${formatMoney(total, "TRY")} toplam · ${count} taksit`;
+  }
+  return "0 TL";
+}
+
+async function handleRecordSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(dom.subscriptionForm);
+  const existing = state.records.find((item) => item.id === state.editingId);
+  const recordType = formData.get("recordType") || "subscription";
+  let record;
+
+  if (recordType === "installment") {
+    const merchant = normalizeText(formData.get("merchant"));
+    const productName = normalizeText(formData.get("productName"));
+    const totalInstallments = Number(formData.get("totalInstallments") || 0);
+    const totalAmount = Number(formData.get("totalAmount") || 0);
+    const monthlyInstallment = Number(formData.get("monthlyInstallment") || 0);
+    const startDate = formData.get("startDate") || "";
+    if (!merchant || !productName || !totalInstallments || !startDate || (!totalAmount && !monthlyInstallment)) {
+      showToast("Taksitli kayıt için zorunlu alanları doldur.");
+      return;
+    }
+    const normalizedMonthly = monthlyInstallment || totalAmount / totalInstallments;
+    const normalizedTotal = totalAmount || normalizedMonthly * totalInstallments;
+    record = normalizeRecord({
+      id: existing?.id || createId("rec"),
+      recordType: "installment",
+      merchant,
+      productName,
+      name: merchant,
+      totalAmount: roundMoney(normalizedTotal),
+      monthlyInstallment: roundMoney(normalizedMonthly),
+      totalInstallments,
+      startDate,
+      category: normalizeText(formData.get("installmentCategory")) || "Taksitli Alışveriş",
+      notes: normalizeText(formData.get("installmentNotes")),
+      color: formData.get("installmentColor") || "#0A66D9",
+      icon: guessMonogram(merchant),
+      paymentMethod: existing?.paymentMethod || "Kart",
+      currency: "TRY",
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+  } else {
+    record = normalizeRecord({
+      id: existing?.id || createId("rec"),
+      recordType: "subscription",
+      name: normalizeText(formData.get("name")),
+      price: Number(formData.get("price")),
+      currency: formData.get("currency"),
+      billingCycle: formData.get("billingCycle"),
+      nextPaymentDate: formData.get("nextPaymentDate"),
+      trialEndDate: formData.get("trialEndDate") || "",
+      category: normalizeText(formData.get("category")),
+      paymentMethod: normalizeText(formData.get("paymentMethod")),
+      status: formData.get("status"),
+      icon: normalizeText(formData.get("icon")).slice(0, 2) || guessMonogram(formData.get("name")),
+      color: formData.get("color"),
+      notes: normalizeText(formData.get("notes")),
+      valueScore: Number(formData.get("valueScore") || 3),
+      lastUsedDate: formData.get("lastUsedDate") || "",
+      usageFrequency: formData.get("usageFrequency") || "medium",
+      isPriceIncreased: formData.get("isPriceIncreased") === "on",
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    if (!record.name || !record.category || !record.nextPaymentDate || Number.isNaN(record.price)) {
+      showToast("Lütfen zorunlu alanları doldur.");
+      return;
+    }
+  }
+
+  await putRecord("subscriptions", record);
   await loadState();
   populatePaymentSubscriptions();
   renderAll();
   dom.subscriptionDialog.close();
-  showToast(existing ? "Abonelik guncellendi." : "Abonelik eklendi.");
+  syncSheetState();
+  showToast(existing ? "Kayıt güncellendi." : "Kayıt eklendi.");
 }
 
-async function handleArchiveCurrentSubscription() {
+async function handleArchiveCurrentRecord() {
   if (!state.editingId) {
     return;
   }
-
-  const subscription = state.subscriptions.find((item) => item.id === state.editingId);
-  if (!subscription) {
+  const record = state.records.find((item) => item.id === state.editingId);
+  if (!record) {
     return;
   }
-
   const archiveItem = {
     id: createId("archive"),
     archivedAt: new Date().toISOString(),
-    annualSavingsTl: calculateAnnualTl(subscription),
+    annualSavingsTl: calculateAnnualTl(record),
     snapshot: {
-      ...subscription,
-      status: "cancelled"
+      ...record,
+      status: isInstallment(record) ? "completed" : "cancelled"
     }
   };
-
   await putRecord("archives", archiveItem);
-  await deleteRecord("subscriptions", subscription.id);
+  await deleteRecord("subscriptions", record.id);
   await loadState();
   populatePaymentSubscriptions();
   renderAll();
   dom.subscriptionDialog.close();
-  showToast("Abonelik arsive tasindi.");
+  syncSheetState();
+  showToast("Kayıt arşive taşındı.");
 }
 
-async function handleDeleteSubscription(subscription) {
-  const confirmed = window.confirm(`${subscription.name} kalici olarak silinsin mi?`);
+async function handleDeleteRecord(record) {
+  const confirmed = window.confirm(`${getRecordDisplayTitle(record)} kalıcı olarak silinsin mi?`);
   if (!confirmed) {
     return;
   }
-
-  await deleteRecord("subscriptions", subscription.id);
-  const paymentsToDelete = state.payments.filter((payment) => payment.subscriptionId === subscription.id);
+  await deleteRecord("subscriptions", record.id);
+  const paymentsToDelete = state.payments.filter((payment) => payment.subscriptionId === record.id);
   await Promise.all(paymentsToDelete.map((payment) => deleteRecord("payments", payment.id)));
   await loadState();
   populatePaymentSubscriptions();
   renderAll();
-  showToast("Abonelik silindi.");
+  showToast("Kayıt silindi.");
 }
 
 async function handlePaymentSubmit(event) {
   event.preventDefault();
   const formData = new FormData(dom.paymentForm);
-  const subscriptionId = formData.get("subscriptionId");
-  const subscription = state.subscriptions.find((item) => item.id === subscriptionId);
-  if (!subscription) {
-    showToast("Gecerli abonelik secilemedi.");
+  const recordId = formData.get("subscriptionId");
+  const record = state.records.find((item) => item.id === recordId);
+  if (!record) {
+    showToast("Geçerli kayıt seçilemedi.");
     return;
   }
-
   const amount = Number(formData.get("amount"));
   const currency = formData.get("currency");
   const payment = {
     id: createId("pay"),
-    subscriptionId,
+    subscriptionId: recordId,
     paidAt: formData.get("paidAt"),
     amount,
     currency,
     tlAmountAtPayment: convertToTl(amount, currency),
     note: normalizeText(formData.get("note"))
   };
-
   await putRecord("payments", payment);
-  subscription.nextPaymentDate = addCycle(payment.paidAt, subscription.billingCycle);
-  subscription.updatedAt = new Date().toISOString();
-  await putRecord("subscriptions", subscription);
+  if (!isInstallment(record)) {
+    record.nextPaymentDate = addCycle(payment.paidAt, record.billingCycle);
+    record.updatedAt = new Date().toISOString();
+    await putRecord("subscriptions", record);
+  }
   await loadState();
   renderAll();
   dom.paymentDialog.close();
-  showToast("Odeme kaydi eklendi.");
+  syncSheetState();
+  showToast("Ödeme kaydı eklendi.");
 }
 
 async function handleSettingsSubmit(event) {
@@ -491,9 +699,7 @@ async function handleSettingsSubmit(event) {
     darkModePreferred: formData.get("darkModePreferred") === "on",
     theme: formData.get("darkModePreferred") === "on" ? "dark" : "light"
   };
-
   applyTheme(state.settings.theme);
-
   await putRecord("settings", state.settings);
   renderAll();
   maybeSendNotifications();
@@ -505,56 +711,68 @@ function handleCatalogSelection() {
   if (!selected) {
     return;
   }
-
-  const defaults = {
-    name: selected.name,
-    category: selected.category,
-    icon: selected.icon,
-    color: selected.color,
-    price: selected.price,
-    currency: selected.currency,
-    billingCycle: selected.billingCycle,
-    nextPaymentDate: todayIso()
-  };
-
-  setFormValues(dom.subscriptionForm, defaults);
+  if (selected.recordType === "installment") {
+    setFieldValue("recordType", "installment");
+    setFieldValue("merchant", selected.name);
+    setFieldValue("installmentCategory", selected.category || "Taksitli Alışveriş");
+    setFieldValue("installmentColor", selected.color || "#0A66D9");
+  } else {
+    setFieldValue("recordType", "subscription");
+    setFieldValue("name", selected.name);
+    setFieldValue("category", selected.category);
+    setFieldValue("icon", selected.icon);
+    setFieldValue("color", selected.color);
+    setFieldValue("price", selected.price);
+    setFieldValue("currency", selected.currency);
+    setFieldValue("billingCycle", selected.billingCycle);
+    setFieldValue("nextPaymentDate", todayIso());
+  }
+  syncFormMode();
+  updateDetailPreview();
 }
 
 function autoFillPaymentAmount() {
-  const subscription = state.subscriptions.find((item) => item.id === dom.paymentSubscriptionSelect.value);
-  if (!subscription) {
+  const record = state.records.find((item) => item.id === dom.paymentSubscriptionSelect.value);
+  if (!record) {
     return;
   }
-
-  dom.paymentForm.elements.namedItem("amount").value = subscription.price;
-  dom.paymentForm.elements.namedItem("currency").value = subscription.currency;
+  const amount = isInstallment(record) ? record.monthlyInstallment : record.price;
+  dom.paymentForm.elements.namedItem("amount").value = amount || "";
+  dom.paymentForm.elements.namedItem("currency").value = record.currency || "TRY";
 }
 
 function renderAll() {
   renderOverview();
   renderAlerts();
-  renderSubscriptions();
+  renderRecords();
   renderPayments();
   populateSettingsForm();
+  updateHeaderForTab();
+  updateFabVisibility();
 }
 
 function renderOverview() {
-  const activeSubscriptions = state.subscriptions.filter((item) => item.status !== "cancelled");
-  const monthlyTotal = sum(activeSubscriptions.map((item) => calculateMonthlyTl(item)));
-  const yearlyTotal = sum(activeSubscriptions.map((item) => calculateAnnualTl(item)));
+  const activeSubscriptions = state.records.filter((item) => !isInstallment(item) && getRecordStatus(item) !== "cancelled");
+  const activeInstallments = state.records.filter((item) => isInstallment(item) && getRecordStatus(item) !== "completed");
+  const monthlySubscriptions = sum(activeSubscriptions.map((item) => calculateMonthlyTl(item)));
+  const monthlyInstallments = sum(activeInstallments.map((item) => calculateMonthlyTl(item)));
+  const monthlyTotal = monthlySubscriptions + monthlyInstallments;
+  const yearlyTotal = sum(state.records.map((item) => calculateAnnualTl(item)));
   const alerts = buildAlerts();
   const budgetTarget = Number(state.settings.monthlyBudget || 0);
 
   dom.monthlyTotal.textContent = formatCurrency(monthlyTotal);
+  dom.monthlySubscriptionsTotal.textContent = formatCurrency(monthlySubscriptions);
+  dom.monthlyInstallmentsTotal.textContent = formatCurrency(monthlyInstallments);
   dom.yearlyProjection.textContent = formatCurrency(yearlyTotal);
   dom.upcomingCount.textContent = String(alerts.filter((item) => item.type !== "budget").length);
   dom.budgetStatus.textContent = budgetTarget
     ? `${formatCurrency(monthlyTotal)} / ${formatCurrency(budgetTarget)}`
     : "Hedef yok";
 
-  renderCategoryChart(activeSubscriptions);
-  renderTrendChart(activeSubscriptions);
-  renderTopExpensive(activeSubscriptions);
+  renderCategoryChart(state.records);
+  renderTrendChart(state.records);
+  renderTopExpensive(state.records);
   renderCancellationCandidates(activeSubscriptions);
   renderYearSummary(yearlyTotal);
   renderArchiveSummary();
@@ -564,13 +782,11 @@ function renderAlerts() {
   const alerts = buildAlerts();
   dom.alertBadge.textContent = String(alerts.length);
   dom.alertsList.innerHTML = "";
-
   if (!alerts.length) {
-    dom.alertsList.textContent = "Su an dikkat gerektiren bir durum yok.";
+    dom.alertsList.textContent = "Şu an dikkat gerektiren bir durum yok.";
     dom.alertsList.classList.add("empty-state");
     return;
   }
-
   dom.alertsList.classList.remove("empty-state");
   alerts.forEach((alert) => {
     const article = document.createElement("article");
@@ -586,42 +802,38 @@ function renderAlerts() {
   });
 }
 
-function renderSubscriptions() {
+function renderRecords() {
   const search = dom.searchInput.value.trim().toLocaleLowerCase("tr");
   const status = dom.statusFilter.value;
-  const filtered = state.subscriptions.filter((item) => {
-    const matchesStatus = status === "all" ? true : item.status === status;
-    const haystack = `${item.name} ${item.category} ${item.paymentMethod} ${item.notes}`.toLocaleLowerCase("tr");
+  const filtered = state.records.filter((item) => {
+    const computedStatus = getRecordStatus(item);
+    const matchesStatus = status === "all" ? true : computedStatus === status;
+    const haystack = `${getRecordDisplayTitle(item)} ${item.category} ${item.paymentMethod} ${item.notes} ${item.productName || ""}`.toLocaleLowerCase("tr");
     const matchesSearch = search ? haystack.includes(search) : true;
     return matchesStatus && matchesSearch;
   });
 
   dom.subscriptionsList.innerHTML = "";
   if (!filtered.length) {
-    dom.subscriptionsList.textContent = "Filtreye uyan abonelik yok.";
+    dom.subscriptionsList.textContent = "Filtreye uyan kayıt yok.";
     dom.subscriptionsList.classList.add("empty-state");
     return;
   }
-
   dom.subscriptionsList.classList.remove("empty-state");
-  filtered.forEach((subscription) => {
+
+  filtered.forEach((record) => {
     const node = dom.subscriptionCardTemplate.content.firstElementChild.cloneNode(true);
-    node.dataset.id = subscription.id;
-    node.querySelector(".subscription-icon").textContent = subscription.icon || "A";
-    node.querySelector(".subscription-icon").style.background = subscription.color;
-    node.querySelector(".subscription-name").textContent = subscription.name;
-    node.querySelector(".subscription-meta").textContent = `${subscription.category} • ${subscription.paymentMethod || "Odeme yontemi yok"}`;
+    node.dataset.id = record.id;
+    renderRecordLogo(node, record);
+    node.querySelector(".subscription-name").textContent = getRecordDisplayTitle(record);
+    node.querySelector(".subscription-meta").textContent = `${record.category} • ${getRecordTypeLabel(record)}`;
+    node.querySelector(".subscription-price-line").textContent = getRecordPriceLine(record);
     const pill = node.querySelector(".status-pill");
-    pill.textContent = STATUS_LABELS[subscription.status] || subscription.status;
-    pill.style.color = STATUS_COLORS[subscription.status];
+    const computedStatus = getRecordStatus(record);
+    pill.textContent = STATUS_LABELS[computedStatus] || computedStatus;
+    pill.style.color = STATUS_COLORS[computedStatus] || "var(--primary)";
 
-    const stats = [
-      ["Aylik", formatCurrency(calculateMonthlyTl(subscription))],
-      ["Yillik", formatCurrency(calculateAnnualTl(subscription))],
-      ["Gunluk", formatCurrency(calculateDailyTl(subscription))],
-      ["Sonraki", formatDate(subscription.nextPaymentDate)]
-    ];
-
+    const stats = getRecordStats(record);
     node.querySelector(".subscription-stats").innerHTML = stats
       .map(
         ([label, value]) => `
@@ -633,9 +845,17 @@ function renderSubscriptions() {
       )
       .join("");
 
+    const installmentProgress = node.querySelector(".installment-progress");
+    if (isInstallment(record)) {
+      const progress = getInstallmentProgress(record);
+      installmentProgress.classList.remove("hidden");
+      installmentProgress.querySelector(".progress-value").textContent = `${progress.displayInstallment} / ${progress.totalInstallments}`;
+      installmentProgress.querySelector(".progress-fill").style.width = `${progress.percentage}%`;
+      installmentProgress.querySelector(".progress-label").textContent = progress.completed ? "Taksit tamamlandı" : "Taksit ilerlemesi";
+    }
+
     node.querySelector(".subscription-notes").textContent =
-      subscription.notes ||
-      `Kullanim: ${usageLabel(subscription.usageFrequency)} • Deger puani: ${subscription.valueScore}/5 • Iptalde yillik tasarruf ${formatCurrency(calculateAnnualTl(subscription))}`;
+      record.notes || getDefaultNotes(record);
 
     dom.subscriptionsList.append(node);
   });
@@ -644,19 +864,18 @@ function renderSubscriptions() {
 function renderPayments() {
   dom.paymentsList.innerHTML = "";
   if (!state.payments.length) {
-    dom.paymentsList.textContent = "Henuz manuel odeme kaydi yok.";
+    dom.paymentsList.textContent = "Henüz manuel ödeme kaydı yok.";
     dom.paymentsList.classList.add("empty-state");
     return;
   }
-
   dom.paymentsList.classList.remove("empty-state");
   state.payments.slice(0, 20).forEach((payment) => {
-    const subscription = state.subscriptions.find((item) => item.id === payment.subscriptionId);
+    const record = state.records.find((item) => item.id === payment.subscriptionId);
     const article = document.createElement("article");
     article.className = "payment-item";
     article.innerHTML = `
       <div>
-        <strong>${escapeHtml(subscription?.name || "Silinmis abonelik")}</strong>
+        <strong>${escapeHtml(record ? getRecordDisplayTitle(record) : "Silinmiş kayıt")}</strong>
         <small>${formatDate(payment.paidAt)} • ${escapeHtml(payment.note || "Not yok")}</small>
       </div>
       <div>
@@ -668,59 +887,52 @@ function renderPayments() {
   });
 }
 
-function renderTopExpensive(subscriptions) {
-  const topItems = [...subscriptions]
+function renderTopExpensive(records) {
+  const topItems = [...records]
     .sort((a, b) => calculateAnnualTl(b) - calculateAnnualTl(a))
     .slice(0, 5);
-
   dom.expensiveList.innerHTML = "";
   if (!topItems.length) {
-    dom.expensiveList.textContent = "Gosterilecek veri yok.";
+    dom.expensiveList.textContent = "Gösterilecek veri yok.";
     dom.expensiveList.classList.add("empty-state");
     return;
   }
-
   dom.expensiveList.classList.remove("empty-state");
-  topItems.forEach((subscription, index) => {
+  topItems.forEach((record, index) => {
     const row = document.createElement("article");
     row.className = "rank-item";
     row.innerHTML = `
       <div>
-        <strong>${index + 1}. ${escapeHtml(subscription.name)}</strong>
-        <small class="rank-subtitle">${escapeHtml(subscription.category)} • ${CYCLE_LABELS[subscription.billingCycle]}</small>
+        <strong>${index + 1}. ${escapeHtml(getRecordDisplayTitle(record))}</strong>
+        <small class="rank-subtitle">${escapeHtml(record.category)} • ${escapeHtml(getRecordTypeLabel(record))}</small>
       </div>
-      <strong>${formatCurrency(calculateAnnualTl(subscription))}</strong>
+      <strong>${formatCurrency(calculateAnnualTl(record))}</strong>
     `;
     dom.expensiveList.append(row);
   });
 }
 
-function renderCancellationCandidates(subscriptions) {
-  const candidates = subscriptions
-    .map((subscription) => ({
-      subscription,
-      score: calculateCancellationScore(subscription)
-    }))
+function renderCancellationCandidates(records) {
+  const candidates = records
+    .map((record) => ({ record, score: calculateCancellationScore(record) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
-
   dom.cancellationList.innerHTML = "";
   if (!candidates.length) {
-    dom.cancellationList.textContent = "Iptal adayi hesaplanacak veri yok.";
+    dom.cancellationList.textContent = "İptal adayı hesaplanacak veri yok.";
     dom.cancellationList.classList.add("empty-state");
     return;
   }
-
   dom.cancellationList.classList.remove("empty-state");
-  candidates.forEach(({ subscription, score }) => {
+  candidates.forEach(({ record, score }) => {
     const row = document.createElement("article");
     row.className = "rank-item";
     row.innerHTML = `
       <div>
-        <strong>${escapeHtml(subscription.name)}</strong>
-        <small class="rank-subtitle">${usageLabel(subscription.usageFrequency)} • Deger ${subscription.valueScore}/5 • Skor ${score.toFixed(0)}</small>
+        <strong>${escapeHtml(getRecordDisplayTitle(record))}</strong>
+        <small class="rank-subtitle">${usageLabel(record.usageFrequency)} • Değer ${record.valueScore}/5 • Skor ${score.toFixed(0)}</small>
       </div>
-      <strong>${formatCurrency(calculateAnnualTl(subscription))}</strong>
+      <strong>${formatCurrency(calculateAnnualTl(record))}</strong>
     `;
     dom.cancellationList.append(row);
   });
@@ -732,14 +944,13 @@ function renderYearSummary(yearlyProjectionTl) {
   const actualSpent = sum(thisYearPayments.map((payment) => payment.tlAmountAtPayment));
   const totalCount = thisYearPayments.length;
   const projected = yearlyProjectionTl;
-  const label = totalCount ? "Gerceklesmis" : "Tahmini";
-
-  dom.yearSummaryLabel.textContent = `${currentYear} ozeti`;
+  const label = totalCount ? "Gerçekleşmiş" : "Tahmini";
+  dom.yearSummaryLabel.textContent = `${currentYear} özeti`;
   dom.yearSummary.innerHTML = [
     { title: `${label} harcama`, value: formatCurrency(totalCount ? actualSpent : projected) },
-    { title: "Odeme kaydi", value: `${totalCount} adet` },
-    { title: "Gunluk ortalama", value: formatCurrency((totalCount ? actualSpent : projected) / 365) },
-    { title: "Aylik ortalama", value: formatCurrency((totalCount ? actualSpent : projected) / 12) }
+    { title: "Ödeme kaydı", value: `${totalCount} adet` },
+    { title: "Günlük ortalama", value: formatCurrency((totalCount ? actualSpent : projected) / 365) },
+    { title: "Aylık ortalama", value: formatCurrency((totalCount ? actualSpent : projected) / 12) }
   ]
     .map(
       (item) => `
@@ -755,12 +966,11 @@ function renderYearSummary(yearlyProjectionTl) {
 function renderArchiveSummary() {
   const totalSavings = sum(state.archives.map((item) => item.annualSavingsTl));
   const lastArchived = state.archives[0];
-
   dom.archiveSummary.innerHTML = [
-    { title: "Toplam arsiv", value: `${state.archives.length} kayit` },
-    { title: "Yillik tasarruf", value: formatCurrency(totalSavings) },
-    { title: "Son iptal", value: lastArchived ? lastArchived.snapshot.name : "Yok" },
-    { title: "Son arsiv tarihi", value: lastArchived ? formatDate(lastArchived.archivedAt) : "Yok" }
+    { title: "Toplam arşiv", value: `${state.archives.length} kayıt` },
+    { title: "Yıllık tasarruf", value: formatCurrency(totalSavings) },
+    { title: "Son iptal", value: lastArchived ? getRecordDisplayTitle(lastArchived.snapshot) : "Yok" },
+    { title: "Son arşiv tarihi", value: lastArchived ? formatDate(lastArchived.archivedAt) : "Yok" }
   ]
     .map(
       (item) => `
@@ -773,12 +983,15 @@ function renderArchiveSummary() {
     .join("");
 }
 
-function renderCategoryChart(subscriptions) {
+function renderCategoryChart(records) {
   const categoryTotals = {};
-  subscriptions.forEach((subscription) => {
-    categoryTotals[subscription.category] = (categoryTotals[subscription.category] || 0) + calculateMonthlyTl(subscription);
+  records.forEach((record) => {
+    const value = calculateMonthlyTl(record);
+    if (value <= 0) {
+      return;
+    }
+    categoryTotals[record.category] = (categoryTotals[record.category] || 0) + value;
   });
-
   const entries = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
   const colors = entries.map(([category]) => getCategoryColor(category));
   drawDonutChart(dom.categoryChart, entries.map((entry) => entry[1]), colors);
@@ -797,71 +1010,89 @@ function renderCategoryChart(subscriptions) {
           `
         )
         .join("")
-    : "Kategori dagilimi icin aktif abonelik ekle.";
+    : "Kategori dağılımı için aktif kayıt ekle.";
 }
 
-function renderTrendChart(subscriptions) {
-  const points = buildTrendData(subscriptions);
+function renderTrendChart(records) {
+  const points = buildTrendData(records);
   drawLineChart(dom.trendChart, points.map((point) => point.total));
 }
 
 function buildAlerts() {
   const alerts = [];
   const today = stripTime(new Date());
-  const monthlyTotal = sum(state.subscriptions.map((item) => calculateMonthlyTl(item)));
   const budgetTarget = Number(state.settings.monthlyBudget || 0);
+  const monthlyTotal = sum(state.records.map((item) => calculateMonthlyTl(item)));
 
-  state.subscriptions.forEach((subscription) => {
-    if (subscription.status === "cancelled") {
+  state.records.forEach((record) => {
+    if (isInstallment(record)) {
+      const progress = getInstallmentProgress(record);
+      if (progress.completed) {
+        return;
+      }
+      if (progress.nextDueDate) {
+        const dueDays = daysBetween(today, progress.nextDueDate);
+        if (dueDays >= 0 && dueDays <= state.settings.renewalReminderDays) {
+          alerts.push({
+            id: `installment-${record.id}-${progress.nextDueDate}`,
+            type: "installment",
+            severity: dueDays <= 1 ? "critical" : "info",
+            badge: `${dueDays} gün`,
+            title: `${record.merchant} taksiti yaklaşıyor`,
+            message: `${record.productName} için ${formatDate(progress.nextDueDate)} tarihinde ${formatMoney(record.monthlyInstallment, "TRY")} ödemesi var.`
+          });
+        }
+      }
       return;
     }
 
-    const paymentDays = daysBetween(today, subscription.nextPaymentDate);
-    const annualTl = calculateAnnualTl(subscription);
+    const status = getRecordStatus(record);
+    if (status === "cancelled") {
+      return;
+    }
+    const paymentDays = daysBetween(today, record.nextPaymentDate);
+    const annualTl = calculateAnnualTl(record);
     if (paymentDays >= 0 && paymentDays <= state.settings.renewalReminderDays) {
       alerts.push({
-        id: `renewal-${subscription.id}-${subscription.nextPaymentDate}`,
+        id: `renewal-${record.id}-${record.nextPaymentDate}`,
         type: "renewal",
         severity: paymentDays <= 1 ? "critical" : "info",
-        badge: `${paymentDays} gun`,
-        title: `${subscription.name} odemesi yaklasiyor`,
-        message: `${formatDate(subscription.nextPaymentDate)} tarihinde ${formatMoney(subscription.price, subscription.currency)} yenileme var.`
+        badge: `${paymentDays} gün`,
+        title: `${record.name} ödemesi yaklaşıyor`,
+        message: `${formatDate(record.nextPaymentDate)} tarihinde ${formatMoney(record.price, record.currency)} yenileme var.`
       });
     }
-
-    if (subscription.trialEndDate) {
-      const trialDays = daysBetween(today, subscription.trialEndDate);
+    if (record.trialEndDate) {
+      const trialDays = daysBetween(today, record.trialEndDate);
       if (trialDays >= 0 && trialDays <= state.settings.trialReminderDays) {
         alerts.push({
-          id: `trial-${subscription.id}-${subscription.trialEndDate}`,
+          id: `trial-${record.id}-${record.trialEndDate}`,
           type: "trial",
           severity: "critical",
-          badge: `${trialDays} gun`,
-          title: `${subscription.name} deneme suresi bitiyor`,
-          message: `Deneme suresi ${formatDate(subscription.trialEndDate)} tarihinde sona eriyor.`
+          badge: `${trialDays} gün`,
+          title: `${record.name} deneme süresi bitiyor`,
+          message: `Deneme süresi ${formatDate(record.trialEndDate)} tarihinde sona eriyor.`
         });
       }
     }
-
     if (annualTl >= state.settings.highAnnualThreshold && paymentDays >= 0 && paymentDays <= 30) {
       alerts.push({
-        id: `annual-${subscription.id}-${subscription.nextPaymentDate}`,
+        id: `annual-${record.id}-${record.nextPaymentDate}`,
         type: "annual",
         severity: "info",
-        badge: "Buyuk odeme",
-        title: `${subscription.name} yuksek maliyetli`,
-        message: `Bu aboneligin yillik etkisi ${formatCurrency(annualTl)}. Odeme yakinda.`
+        badge: "Büyük ödeme",
+        title: `${record.name} yüksek maliyetli`,
+        message: `Bu kaydın yıllık etkisi ${formatCurrency(annualTl)}. Ödeme yakında.`
       });
     }
-
-    if (subscription.isPriceIncreased) {
+    if (record.isPriceIncreased) {
       alerts.push({
-        id: `price-${subscription.id}-${subscription.updatedAt}`,
+        id: `price-${record.id}-${record.updatedAt}`,
         type: "price",
         severity: "info",
         badge: "Zam",
-        title: `${subscription.name} icin zam isaretli`,
-        message: "Guncel fiyati kontrol etmek isteyebilirsin."
+        title: `${record.name} için zam işaretli`,
+        message: "Güncel fiyatı kontrol etmek isteyebilirsin."
       });
     }
   });
@@ -871,12 +1102,11 @@ function buildAlerts() {
       id: `budget-${todayIso()}`,
       type: "budget",
       severity: "critical",
-      badge: "Butce",
-      title: "Aylik butce hedefi asildi",
+      badge: "Bütçe",
+      title: "Aylık bütçe hedefi aşıldı",
       message: `${formatCurrency(monthlyTotal)} toplam, hedefin ${formatCurrency(budgetTarget)}.`
     });
   }
-
   return alerts.sort((a, b) => severityScore(b.severity) - severityScore(a.severity));
 }
 
@@ -884,7 +1114,6 @@ function maybeSendNotifications() {
   if (!("Notification" in window) || Notification.permission !== "granted" || !state.settings.notificationsEnabled) {
     return;
   }
-
   const todayKey = todayIso();
   const alerts = buildAlerts();
   const notified = state.settings.notifiedAlerts || {};
@@ -895,7 +1124,6 @@ function maybeSendNotifications() {
     if (notified[key]) {
       return;
     }
-
     new Notification(alert.title, { body: alert.message, icon: "./assets/icons/icon-192.png" });
     notified[key] = true;
     changed = true;
@@ -909,10 +1137,9 @@ function maybeSendNotifications() {
 
 async function requestNotificationPermission() {
   if (!("Notification" in window)) {
-    showToast("Bu tarayicida bildirim destegi yok.");
+    showToast("Bu tarayıcıda bildirim desteği yok.");
     return;
   }
-
   const permission = await Notification.requestPermission();
   state.settings.notificationsEnabled = permission === "granted";
   await putRecord("settings", state.settings);
@@ -928,20 +1155,19 @@ async function requestNotificationPermission() {
 async function exportData() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: 1,
+    version: 2,
     settings: state.settings,
-    subscriptions: state.subscriptions,
+    subscriptions: state.records,
     payments: state.payments,
     archives: state.archives
   };
-
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = `abonelik-yedek-${todayIso()}.json`;
   link.click();
   URL.revokeObjectURL(link.href);
-  showToast("JSON yedegi hazirlandi.");
+  showToast("JSON yedeği hazırlandı.");
 }
 
 async function importData(event) {
@@ -949,20 +1175,17 @@ async function importData(event) {
   if (!file) {
     return;
   }
-
   try {
     const text = await file.text();
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed.subscriptions) || !Array.isArray(parsed.payments) || !Array.isArray(parsed.archives)) {
-      throw new Error("Gecersiz yedek dosyasi");
+      throw new Error("Geçersiz yedek dosyası");
     }
-
-    const confirmed = window.confirm("Mevcut veriler silinip secilen yedek yüklenecek. Devam edilsin mi?");
+    const confirmed = window.confirm("Mevcut veriler silinip seçilen yedek yüklenecek. Devam edilsin mi?");
     if (!confirmed) {
       event.target.value = "";
       return;
     }
-
     await Promise.all(STORE_NAMES.map((storeName) => clearStore(storeName)));
     await Promise.all([
       ...parsed.subscriptions.map((item) => putRecord("subscriptions", item)),
@@ -970,16 +1193,15 @@ async function importData(event) {
       ...parsed.archives.map((item) => putRecord("archives", item)),
       putRecord("settings", { ...DEFAULT_SETTINGS, ...(parsed.settings || {}), id: DEFAULT_SETTINGS.id })
     ]);
-
     await loadState();
     populateCatalogSelect();
     populatePaymentSubscriptions();
     renderAll();
     applyTheme(state.settings.theme || "light");
-    showToast("Yedek basariyla geri yuklendi.");
+    showToast("Yedek başarıyla geri yüklendi.");
   } catch (error) {
     console.error(error);
-    showToast("Yedek yuklenemedi.");
+    showToast("Yedek yüklenemedi.");
   } finally {
     event.target.value = "";
   }
@@ -998,11 +1220,48 @@ function applyTheme(theme) {
   document.body.dataset.theme = theme;
 }
 
+function setActiveTab(tabName) {
+  state.activeTab = tabName;
+  dom.tabButtons.forEach((button) => {
+    const active = button.dataset.tabTarget === tabName;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-current", active ? "page" : "false");
+  });
+  dom.tabPanels.forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.tabPanel === tabName);
+  });
+  updateHeaderForTab();
+  updateFabVisibility();
+}
+
+function updateHeaderForTab() {
+  const config = {
+    overview: { title: "Özet", meta: "Bugünün özeti" },
+    subscriptions: { title: "Abonelikler", meta: "Abonelikler ve taksitler" },
+    analytics: { title: "Analiz", meta: "Maliyet görünümü" },
+    settings: { title: "Ayarlar", meta: "Tercihler ve yedek" }
+  }[state.activeTab] || { title: "Abonelik Takibi", meta: "Hazır" };
+
+  dom.appHeaderTitle.textContent = config.title;
+  dom.appHeaderMeta.textContent = config.meta;
+}
+
+function updateFabVisibility() {
+  const hidden = state.activeTab === "settings" || state.activeTab === "analytics";
+  dom.fabAddBtn.classList.toggle("is-hidden", hidden);
+}
+
+function syncSheetState() {
+  document.body.classList.toggle(
+    "sheet-open",
+    Boolean(dom.subscriptionDialog?.open) || Boolean(dom.paymentDialog?.open)
+  );
+}
+
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) {
     return;
   }
-
   try {
     await navigator.serviceWorker.register("./sw.js");
   } catch (error) {
@@ -1019,73 +1278,64 @@ function maybeShowInstallHint() {
 
 async function triggerInstallPrompt() {
   if (!state.deferredPrompt) {
-    showToast("Tarayici su an yukleme istemi gostermiyor.");
+    showToast("Tarayıcı şu an yükleme istemi göstermiyor.");
     return;
   }
-
   state.deferredPrompt.prompt();
   await state.deferredPrompt.userChoice;
   state.deferredPrompt = null;
   dom.installBanner.classList.add("hidden");
 }
 
-function buildTrendData(subscriptions) {
-  const monthLabels = [];
-  const monthlyTotals = [];
+function buildTrendData(records) {
+  const data = [];
   const now = new Date();
-
   for (let offset = 5; offset >= 0; offset -= 1) {
     const monthDate = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-    const total = sum(
-      subscriptions.map((subscription) =>
-        monthlyOccurrenceForMonth(subscription, monthDate.getFullYear(), monthDate.getMonth())
-      )
-    );
-    monthLabels.push(monthDate.toLocaleDateString("tr-TR", { month: "short" }));
-    monthlyTotals.push({ label: monthLabels.at(-1), total });
+    const total = sum(records.map((record) => monthlyOccurrenceForMonth(record, monthDate.getFullYear(), monthDate.getMonth())));
+    data.push({ label: monthDate.toLocaleDateString("tr-TR", { month: "short" }), total });
   }
-
-  return monthlyTotals;
+  return data;
 }
 
-function monthlyOccurrenceForMonth(subscription, year, month) {
-  const monthlyTl = calculateMonthlyTl(subscription);
-  const annualTl = calculateAnnualTl(subscription);
-  if (subscription.billingCycle === "monthly") {
+function monthlyOccurrenceForMonth(record, year, month) {
+  if (isInstallment(record)) {
+    const start = new Date(record.startDate);
+    if (Number.isNaN(start.getTime()) || !record.totalInstallments) {
+      return 0;
+    }
+    const monthIndex = (year - start.getFullYear()) * 12 + (month - start.getMonth());
+    return monthIndex >= 0 && monthIndex < record.totalInstallments ? record.monthlyInstallment : 0;
+  }
+  const monthlyTl = calculateMonthlyTl(record);
+  const annualTl = calculateAnnualTl(record);
+  if (record.billingCycle === "monthly" || record.billingCycle === "weekly") {
     return monthlyTl;
   }
-
-  if (subscription.billingCycle === "weekly") {
-    return monthlyTl;
-  }
-
-  const next = new Date(subscription.nextPaymentDate);
+  const next = new Date(record.nextPaymentDate);
   if (Number.isNaN(next.getTime())) {
     return monthlyTl;
   }
-
   const iter = new Date(next);
   for (let i = 0; i < 36; i += 1) {
     if (iter.getFullYear() === year && iter.getMonth() === month) {
-      return subscription.billingCycle === "quarterly" ? annualTl / 4 : annualTl;
+      return record.billingCycle === "quarterly" ? annualTl / 4 : annualTl;
     }
-    iter.setTime(addCycle(iter, subscription.billingCycle, true).getTime());
+    iter.setTime(addCycle(iter, record.billingCycle, true).getTime());
     if (iter.getFullYear() > year || (iter.getFullYear() === year && iter.getMonth() > month)) {
       break;
     }
   }
-
   const backIter = new Date(next);
   for (let i = 0; i < 36; i += 1) {
     if (backIter.getFullYear() === year && backIter.getMonth() === month) {
-      return subscription.billingCycle === "quarterly" ? annualTl / 4 : annualTl;
+      return record.billingCycle === "quarterly" ? annualTl / 4 : annualTl;
     }
-    backIter.setTime(addCycle(backIter, subscription.billingCycle, false).getTime());
+    backIter.setTime(addCycle(backIter, record.billingCycle, false).getTime());
     if (backIter.getFullYear() < year || (backIter.getFullYear() === year && backIter.getMonth() < month)) {
       break;
     }
   }
-
   return 0;
 }
 
@@ -1095,15 +1345,12 @@ function drawDonutChart(canvas, values, colors) {
   const height = canvas.height;
   const total = sum(values);
   ctx.clearRect(0, 0, width, height);
-
   if (!total) {
     drawEmptyCanvasState(ctx, width, height, "Veri yok");
     return;
   }
-
   ctx.save();
   ctx.translate(width / 2, height / 2);
-
   let start = -Math.PI / 2;
   values.forEach((value, index) => {
     const slice = (value / total) * Math.PI * 2;
@@ -1115,14 +1362,12 @@ function drawDonutChart(canvas, values, colors) {
     ctx.stroke();
     start += slice;
   });
-
   ctx.beginPath();
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--surface-strong");
   ctx.arc(0, 0, 40, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text");
-  ctx.font = "700 18px Avenir Next, Segoe UI, sans-serif";
+  ctx.font = "700 18px App Serif, Georgia, serif";
   ctx.textAlign = "center";
   ctx.fillText(formatCurrencyShort(total), 0, 6);
   ctx.restore();
@@ -1133,16 +1378,13 @@ function drawLineChart(canvas, values) {
   const width = canvas.width;
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
-
   if (!values.some(Boolean)) {
-    drawEmptyCanvasState(ctx, width, height, "Trend icin veri yok");
+    drawEmptyCanvasState(ctx, width, height, "Trend için veri yok");
     return;
   }
-
   const padding = 28;
   const max = Math.max(...values, 1);
   const stepX = (width - padding * 2) / Math.max(values.length - 1, 1);
-
   ctx.strokeStyle = "rgba(120, 170, 230, 0.25)";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i += 1) {
@@ -1152,7 +1394,6 @@ function drawLineChart(canvas, values) {
     ctx.lineTo(width - padding, y);
     ctx.stroke();
   }
-
   ctx.beginPath();
   values.forEach((value, index) => {
     const x = padding + stepX * index;
@@ -1166,7 +1407,6 @@ function drawLineChart(canvas, values) {
   ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--primary");
   ctx.lineWidth = 3;
   ctx.stroke();
-
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--accent");
   values.forEach((value, index) => {
     const x = padding + stepX * index;
@@ -1175,9 +1415,8 @@ function drawLineChart(canvas, values) {
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
   });
-
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-  ctx.font = "12px Avenir Next, Segoe UI, sans-serif";
+  ctx.font = "12px App Sans, Segoe UI, sans-serif";
   ctx.fillText("6 ay", padding, height - 8);
   ctx.fillText(formatCurrencyShort(max), width - padding - 42, 18);
 }
@@ -1186,15 +1425,19 @@ function drawEmptyCanvasState(ctx, width, height, label) {
   ctx.save();
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-  ctx.font = "14px Avenir Next, Segoe UI, sans-serif";
+  ctx.font = "14px App Sans, Segoe UI, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(label, width / 2, height / 2);
   ctx.restore();
 }
 
-function calculateMonthlyTl(subscription) {
-  const base = convertToTl(subscription.price, subscription.currency);
-  switch (subscription.billingCycle) {
+function calculateMonthlyTl(record) {
+  if (isInstallment(record)) {
+    const progress = getInstallmentProgress(record);
+    return progress.started && !progress.completed ? convertToTl(record.monthlyInstallment, record.currency) : 0;
+  }
+  const base = convertToTl(record.price, record.currency);
+  switch (record.billingCycle) {
     case "weekly":
       return (base * 52) / 12;
     case "quarterly":
@@ -1207,19 +1450,24 @@ function calculateMonthlyTl(subscription) {
   }
 }
 
-function calculateAnnualTl(subscription) {
-  return calculateMonthlyTl(subscription) * 12;
+function calculateAnnualTl(record) {
+  if (isInstallment(record)) {
+    const progress = getInstallmentProgress(record);
+    const futureInstallments = Math.max(0, Math.min(progress.remainingInstallments, 12));
+    return futureInstallments * convertToTl(record.monthlyInstallment, record.currency);
+  }
+  return calculateMonthlyTl(record) * 12;
 }
 
-function calculateDailyTl(subscription) {
-  return calculateAnnualTl(subscription) / 365;
+function calculateDailyTl(record) {
+  return calculateAnnualTl(record) / 365;
 }
 
-function calculateCancellationScore(subscription) {
-  const annualNorm = Math.min(calculateAnnualTl(subscription) / 150, 100);
-  const usageNorm = USAGE_SCORES[subscription.usageFrequency] ?? 0.5;
-  const valueNorm = (6 - Number(subscription.valueScore || 3)) / 5;
-  const daysSinceLastUse = subscription.lastUsedDate ? daysBetween(subscription.lastUsedDate, todayIso()) : 120;
+function calculateCancellationScore(record) {
+  const annualNorm = Math.min(calculateAnnualTl(record) / 150, 100);
+  const usageNorm = USAGE_SCORES[record.usageFrequency] ?? 0.5;
+  const valueNorm = (6 - Number(record.valueScore || 3)) / 5;
+  const daysSinceLastUse = record.lastUsedDate ? daysBetween(record.lastUsedDate, todayIso()) : 120;
   const stalenessNorm = Math.min(daysSinceLastUse / 180, 1);
   return annualNorm * 0.45 + usageNorm * 100 * 0.2 + valueNorm * 100 * 0.2 + stalenessNorm * 100 * 0.15;
 }
@@ -1233,6 +1481,154 @@ function convertToTl(amount, currency) {
     return numericAmount * Number(state.settings.eurRate || 1);
   }
   return numericAmount;
+}
+
+function getInstallmentProgress(record, now = new Date()) {
+  const start = new Date(record.startDate);
+  const totalInstallments = Number(record.totalInstallments || 0);
+  if (Number.isNaN(start.getTime()) || !totalInstallments) {
+    return {
+      started: false,
+      completed: false,
+      displayInstallment: 0,
+      totalInstallments,
+      percentage: 0,
+      remainingInstallments: totalInstallments,
+      nextDueDate: null
+    };
+  }
+
+  const current = stripTime(now);
+  const startDay = start.getDate();
+  const rawMonthDiff = (current.getFullYear() - start.getFullYear()) * 12 + (current.getMonth() - start.getMonth());
+  const adjustedMonthDiff = current.getDate() < startDay ? rawMonthDiff - 1 : rawMonthDiff;
+  const started = adjustedMonthDiff >= 0 || current >= stripTime(start);
+  const completed = adjustedMonthDiff >= totalInstallments;
+  const displayInstallment = completed ? totalInstallments : Math.max(1, Math.min(totalInstallments, adjustedMonthDiff + 1));
+  const remainingInstallments = completed ? 0 : Math.max(0, totalInstallments - displayInstallment);
+  const percentage = totalInstallments ? (displayInstallment / totalInstallments) * 100 : 0;
+
+  let nextDueDate = null;
+  if (!started) {
+    nextDueDate = toIsoDate(start);
+  } else if (!completed && displayInstallment < totalInstallments) {
+    nextDueDate = addMonthsIso(record.startDate, displayInstallment);
+  }
+
+  return {
+    started,
+    completed,
+    displayInstallment,
+    totalInstallments,
+    percentage,
+    remainingInstallments,
+    nextDueDate
+  };
+}
+
+function getRecordStatus(record) {
+  if (isInstallment(record)) {
+    return getInstallmentProgress(record).completed ? "completed" : "active";
+  }
+  return record.status || "active";
+}
+
+function getRecordTypeLabel(record) {
+  return isInstallment(record) ? "Taksitli alışveriş" : "Abonelik";
+}
+
+function getRecordPrimaryName(record) {
+  return isInstallment(record) ? record.merchant || record.name || "" : record.name || "";
+}
+
+function getRecordDisplayTitle(record) {
+  if (isInstallment(record)) {
+    return record.productName ? `${record.merchant} · ${record.productName}` : record.merchant;
+  }
+  return record.name;
+}
+
+function getRecordPriceLine(record) {
+  if (isInstallment(record)) {
+    const progress = getInstallmentProgress(record);
+    return `Aylık ${formatCurrency(record.monthlyInstallment)} · ${progress.displayInstallment}/${progress.totalInstallments} taksit`;
+  }
+  return `${formatMoney(record.price, record.currency)} · ${cycleSuffix(record.billingCycle)}`;
+}
+
+function getRecordStats(record) {
+  if (isInstallment(record)) {
+    const progress = getInstallmentProgress(record);
+    return [
+      ["Toplam", formatCurrency(record.totalAmount)],
+      ["Aylık", formatCurrency(record.monthlyInstallment)],
+      ["İlerleme", `${progress.displayInstallment} / ${progress.totalInstallments}`],
+      ["Sonraki", progress.nextDueDate ? formatDate(progress.nextDueDate) : "Tamamlandı"]
+    ];
+  }
+  return [
+    ["Aylık", formatCurrency(calculateMonthlyTl(record))],
+    ["Yıllık", formatCurrency(calculateAnnualTl(record))],
+    ["Günlük", formatCurrency(calculateDailyTl(record))],
+    ["Sonraki", formatDate(record.nextPaymentDate)]
+  ];
+}
+
+function getDefaultNotes(record) {
+  if (isInstallment(record)) {
+    const progress = getInstallmentProgress(record);
+    return `${record.merchant} alışverişi • ${progress.displayInstallment}/${progress.totalInstallments} taksit • Tamamlanınca otomatik düşer`;
+  }
+  return `Kullanım: ${usageLabel(record.usageFrequency)} • Değer puanı: ${record.valueScore}/5 • İptalde yıllık tasarruf ${formatCurrency(calculateAnnualTl(record))}`;
+}
+
+function renderRecordLogo(node, record) {
+  const img = node.querySelector(".subscription-logo");
+  const fallback = node.querySelector(".subscription-icon");
+  const monogram = record.icon || guessMonogram(getRecordPrimaryName(record));
+  const title = getRecordPrimaryName(record);
+  const subtitle = isInstallment(record) ? "TR" : record.category;
+  const svgData = createLogoDataUri({
+    label: monogram,
+    color: record.color || getCategoryColor(record.category),
+    title,
+    subtitle
+  });
+  img.src = svgData;
+  img.classList.remove("hidden");
+  img.alt = `${title} logosu`;
+  fallback.classList.add("hidden");
+}
+
+function createLogoDataUri({ label, color, title, subtitle }) {
+  const safeLabel = escapeHtml(label.slice(0, 2).toUpperCase());
+  const safeTitle = escapeHtml(title.slice(0, 22));
+  const safeSubtitle = escapeHtml((subtitle || "").slice(0, 12).toUpperCase());
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="${color}"/>
+          <stop offset="100%" stop-color="#13B7C9"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="60" height="60" rx="20" fill="url(#g)"/>
+      <rect x="5" y="5" width="54" height="54" rx="17" fill="rgba(255,255,255,0.08)"/>
+      <text x="32" y="31" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.8)">${safeSubtitle}</text>
+      <text x="32" y="47" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${safeLabel}</text>
+      <title>${safeTitle}</title>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function guessMonogram(value) {
+  const clean = normalizeText(value).replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9 ]/g, "");
+  if (!clean) {
+    return "A";
+  }
+  const parts = clean.split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
 function formatCurrency(value) {
@@ -1259,6 +1655,15 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? "Belirtilmedi" : date.toLocaleDateString("tr-TR");
 }
 
+function cycleSuffix(cycle) {
+  return {
+    weekly: "/hafta",
+    monthly: "/ay",
+    quarterly: "/3 ay",
+    yearly: "/yıl"
+  }[cycle] || "/ay";
+}
+
 function daysBetween(from, to) {
   const fromDate = stripTime(new Date(from));
   const toDate = stripTime(new Date(to));
@@ -1271,11 +1676,15 @@ function stripTime(date) {
 
 function usageLabel(value) {
   return {
-    high: "Sik kullanim",
-    medium: "Ara sira kullanim",
-    low: "Nadiren kullanim",
-    unused: "Neredeyse hic kullanilmiyor"
+    high: "Sık kullanım",
+    medium: "Ara sıra kullanım",
+    low: "Nadiren kullanım",
+    unused: "Neredeyse hiç kullanılmıyor"
   }[value] || "Belirsiz";
+}
+
+function isInstallment(record) {
+  return record.recordType === "installment";
 }
 
 function createId(prefix) {
@@ -1294,6 +1703,10 @@ function sum(values) {
   return values.reduce((total, value) => total + Number(value || 0), 0);
 }
 
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
 function addCycle(value, cycle, asDate = false) {
   const date = typeof value === "string" ? new Date(value) : new Date(value);
   if (cycle === "weekly") {
@@ -1305,7 +1718,17 @@ function addCycle(value, cycle, asDate = false) {
   } else {
     date.setMonth(date.getMonth() + 1);
   }
-  return asDate ? date : date.toISOString().slice(0, 10);
+  return asDate ? date : toIsoDate(date);
+}
+
+function addMonthsIso(value, months) {
+  const date = new Date(value);
+  date.setMonth(date.getMonth() + months);
+  return toIsoDate(date);
+}
+
+function toIsoDate(date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
 function severityScore(value) {
@@ -1314,7 +1737,7 @@ function severityScore(value) {
 
 function getCategoryColor(category) {
   const palette = ["#0A66D9", "#13B7C9", "#0D9476", "#5CAEFF", "#325AD7", "#7BC4FF", "#0053A0"];
-  const hash = Array.from(category).reduce((total, char) => total + char.charCodeAt(0), 0);
+  const hash = Array.from(category || "").reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[hash % palette.length];
 }
 
@@ -1323,7 +1746,6 @@ function showToast(message) {
   if (existing) {
     existing.remove();
   }
-
   const toast = document.createElement("div");
   toast.className = "toast";
   toast.textContent = message;

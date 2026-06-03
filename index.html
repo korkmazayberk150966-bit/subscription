@@ -13,200 +13,274 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="hero-card">
-        <div class="hero-top">
-          <div>
-            <p class="eyebrow">Abonelik & Maliyet Takip</p>
-            <h1>Bu Ay Toplam: <span id="monthlyTotal">0 TL</span></h1>
+      <header class="app-header">
+        <div class="app-header-row">
+          <div class="app-brand">
+            <div class="brand-mark">A</div>
+            <div>
+              <p id="appHeaderMeta" class="app-header-meta">Bugünün özeti</p>
+              <h1 id="appHeaderTitle" class="app-header-title">Özet</h1>
+            </div>
           </div>
-          <div class="hero-actions">
-            <button id="themeToggle" class="ghost-button" type="button">Tema</button>
-            <button id="addSubscriptionBtn" class="primary-button" type="button">Abonelik Ekle</button>
+          <div class="app-header-actions">
+            <button id="themeToggle" class="icon-pill" type="button" aria-label="Tema değiştir">◐</button>
+            <button id="headerAddBtn" class="icon-pill icon-pill-primary" type="button" aria-label="Abonelik ekle">+</button>
           </div>
-        </div>
-        <div class="hero-metrics">
-          <article>
-            <span>Yıllık Projeksiyon</span>
-            <strong id="yearlyProjection">0 TL</strong>
-          </article>
-          <article>
-            <span>Bütçe Durumu</span>
-            <strong id="budgetStatus">Hedef yok</strong>
-          </article>
-          <article>
-            <span>Yaklaşan Ödeme</span>
-            <strong id="upcomingCount">0</strong>
-          </article>
-        </div>
-        <div id="installBanner" class="install-banner hidden">
-          <div>
-            <strong>Telefonuna uygulama gibi ekleyebilirsin.</strong>
-            <p>Ana ekrana ekleyerek tam ekran kullan.</p>
-          </div>
-          <button id="installBtn" class="ghost-button" type="button">Ekle</button>
         </div>
       </header>
 
-      <main class="layout">
-        <section class="panel panel-alerts">
-          <div class="panel-header">
-            <h2>Uyarılar</h2>
-            <span id="alertBadge" class="badge">0</span>
-          </div>
-          <div id="alertsList" class="alert-stack empty-state"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Genel Bakış</h2>
-            <p>Özet, dağılım ve tasarruf fırsatları</p>
-          </div>
-          <div class="overview-grid">
-            <article class="subpanel chart-card">
-              <div class="subpanel-header">
-                <h3>Kategori Dağılımı</h3>
-                <span id="categoryLegendSummary">Veri yok</span>
+      <main class="app-content">
+        <section class="screen is-active" data-tab-panel="overview">
+          <div class="hero-card">
+            <div class="hero-top">
+              <div>
+                <p class="eyebrow">Abonelik & Maliyet Takip</p>
+                <h2 class="hero-title">Bu Ay Toplam</h2>
+                <p class="hero-amount" id="monthlyTotal">0 TL</p>
               </div>
-              <canvas id="categoryChart" width="320" height="220"></canvas>
-              <div id="categoryLegend" class="legend-list"></div>
-            </article>
-
-            <article class="subpanel chart-card">
-              <div class="subpanel-header">
-                <h3>Aylık Trend</h3>
-                <span>Son 6 ay</span>
+              <div class="hero-actions">
+                <button id="addSubscriptionBtn" class="primary-button" type="button">Yeni abonelik</button>
               </div>
-              <canvas id="trendChart" width="320" height="220"></canvas>
-            </article>
-
-            <article class="subpanel">
-              <div class="subpanel-header">
-                <h3>En Pahalı Abonelikler</h3>
-                <span>TL normalize</span>
-              </div>
-              <div id="expensiveList" class="rank-list empty-state"></div>
-            </article>
-
-            <article class="subpanel">
-              <div class="subpanel-header">
-                <h3>İptal Adayları</h3>
-                <span>Az kullanım + yüksek maliyet</span>
-              </div>
-              <div id="cancellationList" class="rank-list empty-state"></div>
-            </article>
-
-            <article class="subpanel">
-              <div class="subpanel-header">
-                <h3>Yıl Sonu Özeti</h3>
-                <span id="yearSummaryLabel">Bu yıl</span>
-              </div>
-              <div id="yearSummary" class="summary-card-list"></div>
-            </article>
-
-            <article class="subpanel">
-              <div class="subpanel-header">
-                <h3>Arşiv Tasarrufu</h3>
-                <span>İptal edilenler</span>
-              </div>
-              <div id="archiveSummary" class="summary-card-list"></div>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header responsive-header">
-            <div>
-              <h2>Abonelikler</h2>
-              <p>Tüm kayıtların burada</p>
             </div>
-            <div class="inline-filters">
+            <div class="hero-metrics">
+              <article>
+                <span>Yıllık Projeksiyon</span>
+                <strong id="yearlyProjection">0 TL</strong>
+              </article>
+              <article>
+                <span>Bu ay abonelikler</span>
+                <strong id="monthlySubscriptionsTotal">0 TL</strong>
+              </article>
+              <article>
+                <span>Bu ay taksitler</span>
+                <strong id="monthlyInstallmentsTotal">0 TL</strong>
+              </article>
+              <article>
+                <span>Bütçe Durumu</span>
+                <strong id="budgetStatus">Hedef yok</strong>
+              </article>
+              <article>
+                <span>Yaklaşan Ödeme</span>
+                <strong id="upcomingCount">0</strong>
+              </article>
+            </div>
+            <div id="installBanner" class="install-banner hidden">
+              <div>
+                <strong>Telefonuna uygulama gibi ekleyebilirsin.</strong>
+                <p>Ana ekrana ekleyerek tam ekran kullan.</p>
+              </div>
+              <button id="installBtn" class="ghost-button" type="button">Ekle</button>
+            </div>
+          </div>
+
+          <section class="panel panel-alerts">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">Takip</p>
+                <h2>Uyarılar</h2>
+              </div>
+              <span id="alertBadge" class="badge">0</span>
+            </div>
+            <div id="alertsList" class="alert-stack empty-state"></div>
+          </section>
+        </section>
+
+        <section class="screen" data-tab-panel="subscriptions">
+          <section class="panel">
+            <div class="panel-header responsive-header">
+              <div>
+                <p class="section-kicker">Kütüphane</p>
+                <h2>Abonelikler</h2>
+                <p>Tüm kayıtların burada</p>
+              </div>
+              <div class="inline-filters">
+                <label>
+                  <span>Durum</span>
+                  <select id="statusFilter">
+                    <option value="all">Tümü</option>
+                    <option value="active">Aktif</option>
+                    <option value="trial">Deneme</option>
+                    <option value="paused">Duraklatıldı</option>
+                    <option value="cancelled">İptal Edildi</option>
+                    <option value="completed">Tamamlandı</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Ara</span>
+                  <input id="searchInput" type="search" placeholder="Netflix, iCloud..." />
+                </label>
+              </div>
+            </div>
+            <div id="subscriptionsList" class="subscription-list empty-state"></div>
+          </section>
+        </section>
+
+        <section class="screen" data-tab-panel="analytics">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">Analiz</p>
+                <h2>Genel Bakış</h2>
+                <p>Özet, dağılım ve tasarruf fırsatları</p>
+              </div>
+            </div>
+            <div class="overview-grid">
+              <article class="subpanel chart-card">
+                <div class="subpanel-header">
+                  <h3>Kategori Dağılımı</h3>
+                  <span id="categoryLegendSummary">Veri yok</span>
+                </div>
+                <canvas id="categoryChart" width="320" height="220"></canvas>
+                <div id="categoryLegend" class="legend-list"></div>
+              </article>
+
+              <article class="subpanel chart-card">
+                <div class="subpanel-header">
+                  <h3>Aylık Trend</h3>
+                  <span>Son 6 ay</span>
+                </div>
+                <canvas id="trendChart" width="320" height="220"></canvas>
+              </article>
+
+              <article class="subpanel">
+                <div class="subpanel-header">
+                  <h3>En Pahalı Abonelikler</h3>
+                  <span>TL normalize</span>
+                </div>
+                <div id="expensiveList" class="rank-list empty-state"></div>
+              </article>
+
+              <article class="subpanel">
+                <div class="subpanel-header">
+                  <h3>İptal Adayları</h3>
+                  <span>Az kullanım + yüksek maliyet</span>
+                </div>
+                <div id="cancellationList" class="rank-list empty-state"></div>
+              </article>
+
+              <article class="subpanel">
+                <div class="subpanel-header">
+                  <h3>Yıl Sonu Özeti</h3>
+                  <span id="yearSummaryLabel">Bu yıl</span>
+                </div>
+                <div id="yearSummary" class="summary-card-list"></div>
+              </article>
+
+              <article class="subpanel">
+                <div class="subpanel-header">
+                  <h3>Arşiv Tasarrufu</h3>
+                  <span>İptal edilenler</span>
+                </div>
+                <div id="archiveSummary" class="summary-card-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header responsive-header">
+              <div>
+                <p class="section-kicker">Kayıt</p>
+                <h2>Ödeme Geçmişi</h2>
+                <p>Manuel ödeme kayıtları</p>
+              </div>
+              <button id="quickLogBtn" class="ghost-button" type="button">Ödeme Kaydı Ekle</button>
+            </div>
+            <div id="paymentsList" class="payment-list empty-state"></div>
+          </section>
+        </section>
+
+        <section class="screen" data-tab-panel="settings">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-kicker">Tercihler</p>
+                <h2>Ayarlar ve Yedek</h2>
+                <p>Kurlar, bütçe, bildirimler ve veri taşıma</p>
+              </div>
+            </div>
+            <form id="settingsForm" class="settings-grid">
               <label>
-                <span>Durum</span>
-                <select id="statusFilter">
-                  <option value="all">Tümü</option>
-                  <option value="active">Aktif</option>
-                  <option value="trial">Deneme</option>
-                  <option value="paused">Duraklatıldı</option>
-                  <option value="cancelled">İptal Edildi</option>
-                </select>
+                <span>Aylık bütçe hedefi (TL)</span>
+                <input name="monthlyBudget" type="number" min="0" step="0.01" />
               </label>
               <label>
-                <span>Ara</span>
-                <input id="searchInput" type="search" placeholder="Netflix, iCloud..." />
+                <span>USD kuru</span>
+                <input name="usdRate" type="number" min="0" step="0.01" />
+              </label>
+              <label>
+                <span>EUR kuru</span>
+                <input name="eurRate" type="number" min="0" step="0.01" />
+              </label>
+              <label>
+                <span>Yenileme uyarısı (gün)</span>
+                <input name="renewalReminderDays" type="number" min="0" step="1" />
+              </label>
+              <label>
+                <span>Deneme uyarısı (gün)</span>
+                <input name="trialReminderDays" type="number" min="0" step="1" />
+              </label>
+              <label>
+                <span>Büyük ödeme eşiği (TL / yıl)</span>
+                <input name="highAnnualThreshold" type="number" min="0" step="1" />
+              </label>
+              <label class="checkbox-row">
+                <input name="notificationsEnabled" type="checkbox" />
+                <span>Tarayıcı bildirimi kullan</span>
+              </label>
+              <label class="checkbox-row">
+                <input name="darkModePreferred" type="checkbox" />
+                <span>Koyu temayı varsayılan yap</span>
+              </label>
+              <div class="settings-actions">
+                <button class="primary-button" type="submit">Ayarları Kaydet</button>
+                <button id="requestNotificationBtn" class="ghost-button" type="button">Bildirim İzni İste</button>
+              </div>
+            </form>
+
+            <div class="backup-actions">
+              <button id="exportBtn" class="ghost-button" type="button">JSON Dışa Aktar</button>
+              <label class="file-upload">
+                <input id="importInput" type="file" accept="application/json" />
+                <span>JSON İçe Aktar</span>
               </label>
             </div>
-          </div>
-          <div id="subscriptionsList" class="subscription-list empty-state"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header responsive-header">
-            <div>
-              <h2>Ödeme Geçmişi</h2>
-              <p>Manuel ödeme kayıtları</p>
-            </div>
-            <button id="quickLogBtn" class="ghost-button" type="button">Ödeme Kaydı Ekle</button>
-          </div>
-          <div id="paymentsList" class="payment-list empty-state"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Ayarlar ve Yedek</h2>
-            <p>Kurlar, bütçe, bildirimler ve veri taşıma</p>
-          </div>
-          <form id="settingsForm" class="settings-grid">
-            <label>
-              <span>Aylık bütçe hedefi (TL)</span>
-              <input name="monthlyBudget" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span>USD kuru</span>
-              <input name="usdRate" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span>EUR kuru</span>
-              <input name="eurRate" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              <span>Yenileme uyarısı (gün)</span>
-              <input name="renewalReminderDays" type="number" min="0" step="1" />
-            </label>
-            <label>
-              <span>Deneme uyarısı (gün)</span>
-              <input name="trialReminderDays" type="number" min="0" step="1" />
-            </label>
-            <label>
-              <span>Büyük ödeme eşiği (TL / yıl)</span>
-              <input name="highAnnualThreshold" type="number" min="0" step="1" />
-            </label>
-            <label class="checkbox-row">
-              <input name="notificationsEnabled" type="checkbox" />
-              <span>Tarayıcı bildirimi kullan</span>
-            </label>
-            <label class="checkbox-row">
-              <input name="darkModePreferred" type="checkbox" />
-              <span>Koyu temayı varsayılan yap</span>
-            </label>
-            <div class="settings-actions">
-              <button class="primary-button" type="submit">Ayarları Kaydet</button>
-              <button id="requestNotificationBtn" class="ghost-button" type="button">Bildirim İzni İste</button>
-            </div>
-          </form>
-
-          <div class="backup-actions">
-            <button id="exportBtn" class="ghost-button" type="button">JSON Dışa Aktar</button>
-            <label class="file-upload">
-              <input id="importInput" type="file" accept="application/json" />
-              <span>JSON İçe Aktar</span>
-            </label>
-          </div>
+          </section>
         </section>
       </main>
+
+      <button id="fabAddBtn" class="fab-button" type="button" aria-label="Yeni abonelik ekle">+</button>
+
+      <nav class="bottom-nav" aria-label="Alt gezinme">
+        <button class="tab-button is-active" type="button" data-tab-target="overview">
+          <span class="tab-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1z"/></svg>
+          </span>
+          <span>Özet</span>
+        </button>
+        <button class="tab-button" type="button" data-tab-target="subscriptions">
+          <span class="tab-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zm3 2h8v2H8zm0 4h8v2H8z"/></svg>
+          </span>
+          <span>Abonelikler</span>
+        </button>
+        <button class="tab-button" type="button" data-tab-target="analytics">
+          <span class="tab-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9m7 10V5m7 14v-7" stroke="currentColor" stroke-width="2.1" fill="none" stroke-linecap="round"/></svg>
+          </span>
+          <span>Analiz</span>
+        </button>
+        <button class="tab-button" type="button" data-tab-target="settings">
+          <span class="tab-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 8.5 1.1-2.7 2.4.7.6 2.8 2.2 1.3-1 2.3-2.8.2-1.5 2.1 1 2.6-2.3 1.1-1.9-1.9-2.8.2-.9-2.4 1.7-2.1-.6-2.7 2.3-1.1L12 8.5Zm0 1.7a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z"/></svg>
+          </span>
+          <span>Ayarlar</span>
+        </button>
+      </nav>
     </div>
 
     <dialog id="subscriptionDialog" class="app-dialog">
       <form id="subscriptionForm" class="dialog-form" method="dialog">
+        <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Abonelik Formu</p>
@@ -217,6 +291,13 @@
 
         <div class="catalog-picker">
           <label>
+            <span>Kayıt tipi</span>
+            <select id="recordTypeSelect" name="recordType">
+              <option value="subscription">Abonelik</option>
+              <option value="installment">Taksitli alışveriş</option>
+            </select>
+          </label>
+          <label>
             <span>Servis kataloğu</span>
             <select id="catalogSelect">
               <option value="">Elle doldur</option>
@@ -224,7 +305,17 @@
           </label>
         </div>
 
+        <article id="detailPreviewCard" class="detail-preview-card">
+          <div class="detail-preview-logo" id="detailPreviewLogo">A</div>
+          <div class="detail-preview-copy">
+            <p id="detailPreviewType" class="detail-preview-type">Abonelik</p>
+            <h3 id="detailPreviewTitle">Yeni kayıt</h3>
+            <p id="detailPreviewPrice">0 TL</p>
+          </div>
+        </article>
+
         <div class="form-grid">
+          <div id="subscriptionFields" class="group-grid full-width">
           <label>
             <span>İsim</span>
             <input name="name" required type="text" maxlength="80" />
@@ -308,6 +399,46 @@
             <span>Notlar</span>
             <textarea name="notes" rows="4" maxlength="400" placeholder="Öğrenci indirimi var..."></textarea>
           </label>
+          </div>
+
+          <div id="installmentFields" class="group-grid full-width hidden">
+            <label>
+              <span>Site / mağaza</span>
+              <input name="merchant" type="text" maxlength="80" placeholder="Trendyol" />
+            </label>
+            <label>
+              <span>Ürün adı</span>
+              <input name="productName" type="text" maxlength="120" placeholder="Kulaklık, telefon..." />
+            </label>
+            <label>
+              <span>Toplam tutar</span>
+              <input name="totalAmount" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span>Aylık taksit tutarı</span>
+              <input name="monthlyInstallment" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              <span>Toplam taksit sayısı</span>
+              <input name="totalInstallments" type="number" min="1" step="1" placeholder="6" />
+            </label>
+            <label>
+              <span>İlk taksit tarihi</span>
+              <input name="startDate" type="date" />
+            </label>
+            <label>
+              <span>Kategori</span>
+              <input name="installmentCategory" type="text" maxlength="40" placeholder="Alışveriş" />
+            </label>
+            <label>
+              <span>Marka rengi</span>
+              <input name="installmentColor" type="color" />
+            </label>
+            <label class="notes-field full-width">
+              <span>Notlar</span>
+              <textarea name="installmentNotes" rows="4" maxlength="400" placeholder="6 taksit, sonbaharda bitiyor..."></textarea>
+            </label>
+          </div>
         </div>
 
         <div class="dialog-actions">
@@ -320,6 +451,7 @@
 
     <dialog id="paymentDialog" class="app-dialog">
       <form id="paymentForm" class="dialog-form narrow" method="dialog">
+        <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Ödeme Kaydı</p>
@@ -365,15 +497,26 @@
       <article class="subscription-card">
         <div class="subscription-top">
           <div class="subscription-title-wrap">
-            <div class="subscription-icon"></div>
+            <div class="subscription-icon-wrap">
+              <img class="subscription-logo hidden" alt="" />
+              <div class="subscription-icon"></div>
+            </div>
             <div>
               <h3 class="subscription-name"></h3>
               <p class="subscription-meta"></p>
+              <p class="subscription-price-line"></p>
             </div>
           </div>
           <span class="status-pill"></span>
         </div>
         <div class="subscription-stats"></div>
+        <div class="installment-progress hidden">
+          <div class="progress-meta">
+            <span class="progress-label">Taksit ilerlemesi</span>
+            <strong class="progress-value">0 / 0</strong>
+          </div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
         <p class="subscription-notes"></p>
         <div class="subscription-actions">
           <button data-action="log" class="ghost-button" type="button">Ödeme</button>
