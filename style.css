@@ -1,32 +1,63 @@
+@font-face {
+  font-family: "Hanken Grotesk Local";
+  src: url("./assets/fonts/HankenGrotesk-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk Local";
+  src: url("./assets/fonts/HankenGrotesk-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Source Serif Local";
+  src: url("./assets/fonts/SourceSerif4-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Source Serif Local";
+  src: url("./assets/fonts/SourceSerif4-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  color-scheme: light;
-  --bg: #f4f8fe;
+  color-scheme: light dark;
+  --bg: #f7f8fa;
   --bg-accent:
-    radial-gradient(circle at 0% 0%, rgba(90, 190, 255, 0.22), transparent 34%),
-    radial-gradient(circle at 100% 20%, rgba(19, 183, 201, 0.1), transparent 28%),
-    linear-gradient(180deg, #f6faff 0%, #f2f7ff 46%, #eef5ff 100%);
-  --surface: rgba(255, 255, 255, 0.84);
-  --surface-strong: rgba(255, 255, 255, 0.94);
-  --surface-muted: rgba(244, 249, 255, 0.78);
-  --surface-border: rgba(20, 100, 185, 0.09);
-  --text: #0f233f;
-  --muted: #67809f;
-  --primary: #0a66d9;
-  --primary-strong: #0848a7;
-  --primary-soft: rgba(10, 102, 217, 0.1);
-  --accent: #13b7c9;
+    radial-gradient(circle at 0% 0%, rgba(98, 168, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, #f9fbff 0%, #f7f8fa 44%, #f7f8fa 100%);
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: rgba(255, 255, 255, 0.97);
+  --surface-muted: rgba(248, 251, 255, 0.92);
+  --surface-border: rgba(46, 107, 255, 0.08);
+  --text: #12233f;
+  --muted: #6e7d96;
+  --primary: #2e6bff;
+  --primary-strong: #1f54d8;
+  --primary-soft: rgba(46, 107, 255, 0.1);
+  --accent: #66b7ff;
   --success: #0d9476;
   --warning: #ef8f1b;
   --danger: #d6455d;
-  --shadow-lg: 0 28px 70px rgba(12, 42, 91, 0.12);
-  --shadow-md: 0 16px 36px rgba(15, 48, 100, 0.08);
-  --shadow-sm: 0 8px 18px rgba(15, 48, 100, 0.05);
+  --shadow-lg: 0 28px 72px rgba(30, 61, 122, 0.1);
+  --shadow-md: 0 16px 40px rgba(30, 61, 122, 0.07);
+  --shadow-sm: 0 10px 24px rgba(30, 61, 122, 0.05);
   --radius-xl: 32px;
   --radius-lg: 24px;
   --radius-md: 18px;
   --radius-sm: 14px;
-  --font-sans: "Roboto", "Segoe UI", sans-serif;
-  --font-serif: "Roboto", "Segoe UI", sans-serif;
+  --font-sans: "Hanken Grotesk Local", "Segoe UI", sans-serif;
+  --font-serif: "Source Serif Local", Georgia, serif;
 }
 
 * {
@@ -41,6 +72,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 html {
@@ -52,6 +84,25 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior-y: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #091321;
+    --bg-accent:
+      radial-gradient(circle at 0% 0%, rgba(62, 122, 255, 0.2), transparent 30%),
+      linear-gradient(180deg, #0d1828 0%, #091321 48%, #091321 100%);
+    --surface: rgba(18, 30, 49, 0.84);
+    --surface-strong: rgba(20, 33, 54, 0.94);
+    --surface-muted: rgba(18, 30, 49, 0.9);
+    --surface-border: rgba(130, 170, 255, 0.08);
+    --text: #f2f6ff;
+    --muted: #9aa9c2;
+    --primary-soft: rgba(78, 139, 255, 0.16);
+    --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.28);
+    --shadow-md: 0 16px 40px rgba(0, 0, 0, 0.2);
+    --shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.16);
+  }
 }
 
 body.sheet-open {
@@ -74,6 +125,16 @@ select,
 textarea,
 button {
   min-height: 44px;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
 }
 
 .app-shell {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "abonelik-takibi-v8";
+const CACHE_NAME = "abonelik-takibi-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,6 +12,9 @@ const APP_SHELL = [
   "./assets/fonts/SourceSerif4-Bold.ttf",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
+  "./assets/icons/icon-192-maskable.png",
+  "./assets/icons/icon-512-maskable.png",
+  "./assets/icons/apple-touch-icon-180.png",
   "./assets/icons/akce-source-logo.png",
   "./assets/icons/icon.svg",
   "./assets/icons/icon-maskable.svg",
