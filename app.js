@@ -86,11 +86,13 @@ const state = {
   editingId: null,
   deferredPrompt: null,
   activePaymentSubscriptionId: null,
+  detailRecordId: null,
   activeTab: "overview",
   processingTrialDecision: false,
   displayMode: "monthly",
   onboardingStep: 0,
-  serviceWorkerRegistration: null
+  serviceWorkerRegistration: null,
+  cashflowDays: []
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -101,13 +103,14 @@ const dom = {
   monthlyInstallmentsTotal: $("#monthlyInstallmentsTotal"),
   yearlyProjection: $("#yearlyProjection"),
   budgetStatus: $("#budgetStatus"),
+  budgetProgressValue: $("#budgetProgressValue"),
+  budgetProgressHint: $("#budgetProgressHint"),
+  budgetProgressFill: $("#budgetProgressFill"),
   upcomingCount: $("#upcomingCount"),
   monthlyTrialsCount: $("#monthlyTrialsCount"),
   monthlyDelta: $("#monthlyDelta"),
   heroTitle: $("#heroTitle"),
   appHeaderTitle: $("#appHeaderTitle"),
-  appHeaderMeta: $("#appHeaderMeta"),
-  headerUtilityBtn: $("#headerUtilityBtn"),
   alertBadge: $("#alertBadge"),
   alertsList: $("#alertsList"),
   timelineList: $("#timelineList"),
@@ -163,6 +166,22 @@ const dom = {
   paymentForm: $("#paymentForm"),
   paymentSubscriptionSelect: $("#paymentSubscriptionSelect"),
   closePaymentDialogBtn: $("#closePaymentDialogBtn"),
+  recordDetailDialog: $("#recordDetailDialog"),
+  closeDetailDialogBtn: $("#closeDetailDialogBtn"),
+  detailSheetTitle: $("#detailSheetTitle"),
+  detailSheetLogo: $("#detailSheetLogo"),
+  detailSheetType: $("#detailSheetType"),
+  detailSheetName: $("#detailSheetName"),
+  detailSheetPrice: $("#detailSheetPrice"),
+  detailSheetStats: $("#detailSheetStats"),
+  detailSheetNotes: $("#detailSheetNotes"),
+  detailEditBtn: $("#detailEditBtn"),
+  detailArchiveBtn: $("#detailArchiveBtn"),
+  detailRemindBtn: $("#detailRemindBtn"),
+  calendarDetailDialog: $("#calendarDetailDialog"),
+  closeCalendarDetailDialogBtn: $("#closeCalendarDetailDialogBtn"),
+  calendarDetailTitle: $("#calendarDetailTitle"),
+  calendarDetailList: $("#calendarDetailList"),
   categoryChart: $("#categoryChart"),
   trendChart: $("#trendChart"),
   subscriptionCardTemplate: $("#subscriptionCardTemplate"),
@@ -194,7 +213,7 @@ async function init() {
   bindEvents();
   await loadState();
   state.displayMode = window.localStorage.getItem("abonelik-view-mode") || "monthly";
-  applyTheme("light");
+  applyTheme(state.settings.theme || "system");
   populateCatalogSelect();
   populateSettingsForm();
   populatePaymentSubscriptions();
@@ -347,6 +366,8 @@ function bindEvents() {
   dom.quickLogBtn.addEventListener("click", () => openPaymentDialog());
   dom.closeDialogBtn.addEventListener("click", () => dom.subscriptionDialog.close());
   dom.closePaymentDialogBtn.addEventListener("click", () => dom.paymentDialog.close());
+  dom.closeDetailDialogBtn.addEventListener("click", () => dom.recordDetailDialog.close());
+  dom.closeCalendarDetailDialogBtn.addEventListener("click", () => dom.calendarDetailDialog.close());
   dom.resetFormBtn.addEventListener("click", resetRecordForm);
   dom.archiveBtn.addEventListener("click", handleArchiveCurrentRecord);
   dom.subscriptionForm.addEventListener("submit", handleRecordSubmit);
@@ -370,6 +391,7 @@ function bindEvents() {
   dom.paymentSubscriptionSelect.addEventListener("change", autoFillPaymentAmount);
   dom.installBtn.addEventListener("click", triggerInstallPrompt);
   dom.subscriptionForm.addEventListener("input", handleFormLiveUpdates);
+  dom.subscriptionForm.addEventListener("click", handleColorPresetClick);
   dom.tabButtons.forEach((button) => {
     button.addEventListener("click", () => setActiveTab(button.dataset.tabTarget));
   });
@@ -387,8 +409,50 @@ function bindEvents() {
     dialog.addEventListener("close", syncSheetState);
     dialog.addEventListener("cancel", syncSheetState);
   });
+  [dom.recordDetailDialog, dom.calendarDetailDialog].forEach((dialog) => {
+    dialog.addEventListener("close", syncSheetState);
+    dialog.addEventListener("cancel", syncSheetState);
+  });
   dom.nextOnboardingBtn.addEventListener("click", advanceOnboarding);
   dom.skipOnboardingBtn.addEventListener("click", completeOnboarding);
+  dom.detailEditBtn.addEventListener("click", () => {
+    const record = state.records.find((item) => item.id === state.detailRecordId);
+    if (!record) {
+      return;
+    }
+    dom.recordDetailDialog.close();
+    openRecordDialog(record);
+  });
+  dom.detailArchiveBtn.addEventListener("click", async () => {
+    const record = state.records.find((item) => item.id === state.detailRecordId);
+    if (!record) {
+      return;
+    }
+    dom.recordDetailDialog.close();
+    await archiveRecord(record, { toastMessage: `${getRecordDisplayTitle(record)} arşive taşındı.` });
+  });
+  dom.detailRemindBtn.addEventListener("click", () => {
+    const record = state.records.find((item) => item.id === state.detailRecordId);
+    if (!record) {
+      return;
+    }
+    if (isInstallment(record)) {
+      const progress = getInstallmentProgress(record);
+      showToast(progress.nextDueDate ? `Sonraki taksit: ${formatDate(progress.nextDueDate)}` : "Bu taksit planı tamamlandı.");
+      return;
+    }
+    if (isTrialRecord(record)) {
+      showToast(record.trialEndDate ? `Deneme bitişi: ${formatDate(record.trialEndDate)}` : "Deneme için tarih yok.");
+      return;
+    }
+    showToast(record.nextPaymentDate ? `Sonraki ödeme: ${formatDate(record.nextPaymentDate)}` : "Sonraki ödeme tarihi yok.");
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if ((state.settings.theme || "system") === "system") {
+      applyTheme("system");
+      renderAll();
+    }
+  });
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -398,10 +462,14 @@ function bindEvents() {
 
   dom.subscriptionsList.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
+    const card = event.target.closest(".subscription-card");
+    if (!button && card) {
+      openRecordDetail(card.dataset.id);
+      return;
+    }
     if (!button) {
       return;
     }
-    const card = button.closest(".subscription-card");
     const { id } = card.dataset;
     const action = button.dataset.action;
     const record = state.records.find((item) => item.id === id);
@@ -446,6 +514,13 @@ function bindEvents() {
     }
     await loadState();
     renderAll();
+  });
+  dom.cashflowCalendar.addEventListener("click", (event) => {
+    const dayCard = event.target.closest(".calendar-day[data-date]");
+    if (!dayCard) {
+      return;
+    }
+    openCalendarDayDetail(dayCard.dataset.date);
   });
 }
 
@@ -513,6 +588,7 @@ function resetRecordForm() {
   dom.catalogSelect.value = "";
   syncFormMode();
   syncNativeControls();
+  syncColorPresetStates();
   updateDetailPreview();
 }
 
@@ -562,6 +638,66 @@ function openPaymentDialog(recordId = null) {
   syncSheetState();
 }
 
+function openRecordDetail(recordId) {
+  const record = state.records.find((item) => item.id === recordId);
+  if (!record) {
+    return;
+  }
+  state.detailRecordId = record.id;
+  const localLogo = getLogoAssetPath(record) || createLogoDataUri({
+    label: record.icon || guessMonogram(getRecordPrimaryName(record)),
+    color: record.color || getCategoryColor(record.category),
+    title: getRecordPrimaryName(record),
+    subtitle: isInstallment(record) ? "TAKSIT" : record.category
+  });
+  dom.detailSheetTitle.textContent = getRecordDisplayTitle(record);
+  dom.detailSheetLogo.style.background = record.color || getCategoryColor(record.category);
+  dom.detailSheetLogo.innerHTML = `<img src="${localLogo}" alt="" />`;
+  dom.detailSheetType.textContent = getRecordTypeLabel(record);
+  dom.detailSheetName.textContent = getRecordDisplayTitle(record);
+  dom.detailSheetPrice.textContent = getRecordPriceLine(record);
+  dom.detailSheetStats.innerHTML = getRecordStats(record)
+    .slice(0, 4)
+    .map(
+      ([label, value]) => `
+        <article class="summary-item">
+          <small>${escapeHtml(label)}</small>
+          <strong>${escapeHtml(value)}</strong>
+        </article>
+      `
+    )
+    .join("");
+  dom.detailSheetNotes.textContent = record.notes || getDefaultNotes(record);
+  dom.recordDetailDialog.showModal();
+  syncSheetState();
+}
+
+function openCalendarDayDetail(dateIso) {
+  const day = state.cashflowDays.find((item) => toIsoDate(item.date) === dateIso);
+  if (!day) {
+    return;
+  }
+  dom.calendarDetailTitle.textContent = formatDate(dateIso);
+  const items = [
+    ...day.items.map((item) => ({ title: item, meta: day.total ? formatCurrency(day.total) : "Ödeme" })),
+    ...day.trials.map((item) => ({ title: item, meta: "Deneme bitişi" }))
+  ];
+  dom.calendarDetailList.innerHTML = items.length
+    ? items
+        .map(
+          (item) => `
+            <article class="picker-option is-static">
+              <span>${escapeHtml(item.title)}</span>
+              <strong>${escapeHtml(item.meta)}</strong>
+            </article>
+          `
+        )
+        .join("")
+    : getEmptyStateMarkup("◌", "Bu gün sakin", "Seçtiğin gün için planlı ödeme ya da deneme bitişi görünmüyor.");
+  dom.calendarDetailDialog.showModal();
+  syncSheetState();
+}
+
 function setFormValues(form, values) {
   Object.entries(values).forEach(([key, value]) => {
     const field = form.elements.namedItem(key);
@@ -587,6 +723,7 @@ function setFieldValue(name, value, form = dom.subscriptionForm) {
     field.value = value;
   }
   syncNativeControls();
+  syncColorPresetStates();
 }
 
 function handleFormLiveUpdates(event) {
@@ -605,6 +742,23 @@ function handleFormLiveUpdates(event) {
       }
     }
   }
+  if (event.target.type === "color") {
+    syncColorPresetStates();
+  }
+  updateDetailPreview();
+}
+
+function handleColorPresetClick(event) {
+  const button = event.target.closest("[data-color-value]");
+  if (!button) {
+    return;
+  }
+  const target = button.dataset.colorTarget;
+  const value = button.dataset.colorValue;
+  if (!target || !value) {
+    return;
+  }
+  setFieldValue(target, value);
   updateDetailPreview();
 }
 
@@ -865,10 +1019,10 @@ async function handleSettingsSubmit(event) {
     vacationBudget: Number(formData.get("vacationBudget") || DEFAULT_SETTINGS.vacationBudget),
     auditReminderMonths: Number(formData.get("auditReminderMonths") || DEFAULT_SETTINGS.auditReminderMonths),
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
-    darkModePreferred: false,
-    theme: "light"
+    darkModePreferred: formData.get("theme") === "dark",
+    theme: formData.get("theme") || "system"
   };
-  applyTheme("light");
+  applyTheme(state.settings.theme);
   await putRecord("settings", state.settings);
   renderAll();
   maybeSendNotifications();
@@ -1009,19 +1163,33 @@ function renderOverview() {
   dom.budgetStatus.textContent = budgetTarget
     ? `${formatCurrency(monthlyTotal)} / ${formatCurrency(budgetTarget)}`
     : "Hedef yok";
+  const budgetProgress = budgetTarget > 0 ? Math.min((monthlyTotal / budgetTarget) * 100, 100) : 0;
+  if (dom.budgetProgressFill) {
+    dom.budgetProgressFill.style.width = `${budgetProgress}%`;
+  }
+  if (dom.budgetProgressValue) {
+    dom.budgetProgressValue.textContent = budgetTarget
+      ? `%${Math.round(budgetProgress)} · ${formatCurrency(monthlyTotal)}`
+      : "Hedef ekle";
+  }
+  if (dom.budgetProgressHint) {
+    dom.budgetProgressHint.textContent = budgetTarget
+      ? monthlyTotal > budgetTarget
+        ? `Hedefini ${formatCurrency(monthlyTotal - budgetTarget)} aştın.`
+        : `${formatCurrency(Math.max(budgetTarget - monthlyTotal, 0))} alanın kaldı.`
+      : "Aylık hedef belirlediğinde bu ay ki ritmi burada göreceksin.";
+  }
 
   renderCategoryChart(state.records);
   renderTrendChart(state.records);
   renderTopExpensive(state.records.filter((item) => calculateAnnualTl(item) > 0));
   renderCancellationCandidates(activeSubscriptions.filter((item) => !isTrialRecord(item)));
-  renderYearSummary(yearlyTotal);
   renderTrialSummary(activeTrials);
   renderArchiveSummary();
   renderUpcomingTimeline();
   renderCashflowCalendar();
   renderComparisonSummary(monthlyTotal, yearlyTotal);
   renderTrendNarrative(monthlyTotal, previousMonthTotal);
-  renderWrappedSummary();
   renderAuditSummary();
 }
 
@@ -1269,6 +1437,7 @@ function renderTrialSummary(activeTrials) {
 
 function renderCashflowCalendar() {
   const days = buildCashflowCalendarDays();
+  state.cashflowDays = days;
   const next7 = days.filter((day) => day.offset >= 0 && day.offset <= 6 && (day.total > 0 || day.trials.length));
   dom.next7DaysSummary.innerHTML = [
     {
@@ -1313,7 +1482,7 @@ function renderCashflowCalendar() {
         ...day.trials.slice(0, 1).map((item) => `<span class="calendar-chip calendar-chip-trial">${escapeHtml(item)}</span>`)
       ].join("");
       return `
-        <article class="calendar-day ${intensityClass}">
+        <article class="calendar-day ${intensityClass}" data-date="${toIsoDate(day.date)}">
           <small>${day.dayLabel}</small>
           <strong>${day.total > 0 ? formatCurrency(day.total) : day.trials.length ? "Deneme" : "-"}</strong>
           <div class="calendar-chips">${chips}</div>
@@ -1712,7 +1881,7 @@ async function importData(event) {
     populateCatalogSelect();
     populatePaymentSubscriptions();
     renderAll();
-    applyTheme("light");
+    applyTheme(state.settings.theme || "system");
     await maybeResolveExpiredTrials();
     showToast("Yedek başarıyla geri yüklendi.");
   } catch (error) {
@@ -1724,7 +1893,17 @@ async function importData(event) {
 }
 
 function applyTheme(theme) {
-  document.body.dataset.theme = "light";
+  const resolvedTheme =
+    theme === "dark" || theme === "light"
+      ? theme
+      : window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+  document.body.dataset.theme = resolvedTheme;
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) {
+    themeColor.setAttribute("content", resolvedTheme === "dark" ? "#091321" : "#2E6BFF");
+  }
 }
 
 function setActiveTab(tabName) {
@@ -1743,15 +1922,13 @@ function setActiveTab(tabName) {
 
 function updateHeaderForTab() {
   const config = {
-    overview: { title: "Özet", meta: "Bugünün özeti" },
-    subscriptions: { title: "Abonelikler", meta: "Abonelikler ve taksitler" },
-    analytics: { title: "Analiz", meta: "Maliyet görünümü" },
-    settings: { title: "Ayarlar", meta: "Tercihler ve yedek" }
-  }[state.activeTab] || { title: "Akçe", meta: "Hazır" };
+    overview: { title: "Özet" },
+    subscriptions: { title: "Abonelikler" },
+    analytics: { title: "Analiz" },
+    settings: { title: "Ayarlar" }
+  }[state.activeTab] || { title: "Akçe" };
 
   dom.appHeaderTitle.textContent = config.title;
-  dom.appHeaderMeta.textContent = config.meta;
-  dom.headerUtilityBtn.classList.add("hidden");
 }
 
 function updateFabVisibility() {
@@ -1841,7 +2018,12 @@ function resolvePickerTarget(targetName) {
   if (targetName === "auditReminderMonths") {
     return dom.settingsForm.elements.namedItem("auditReminderMonths");
   }
-  return dom.subscriptionForm.elements.namedItem(targetName) || dom.paymentForm.elements.namedItem(targetName) || document.getElementById(targetName);
+  return (
+    dom.subscriptionForm.elements.namedItem(targetName) ||
+    dom.paymentForm.elements.namedItem(targetName) ||
+    dom.settingsForm.elements.namedItem(targetName) ||
+    document.getElementById(targetName)
+  );
 }
 
 function openPickerByTarget(targetName, title) {
@@ -1884,7 +2066,9 @@ function syncSheetState() {
     Boolean(dom.subscriptionDialog?.open) ||
       Boolean(dom.paymentDialog?.open) ||
       Boolean(dom.onboardingDialog?.open) ||
-      Boolean(dom.pickerDialog?.open)
+      Boolean(dom.pickerDialog?.open) ||
+      Boolean(dom.recordDetailDialog?.open) ||
+      Boolean(dom.calendarDetailDialog?.open)
   );
 }
 
@@ -2027,7 +2211,7 @@ function drawDonutChart(canvas, values, colors) {
   ctx.arc(0, 0, 40, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text");
-  ctx.font = "700 18px App Serif, Georgia, serif";
+  ctx.font = '700 18px "Hanken Grotesk Local"';
   ctx.textAlign = "center";
   ctx.fillText(formatCurrencyShort(total), 0, 6);
   ctx.restore();
@@ -2076,7 +2260,7 @@ function drawLineChart(canvas, values) {
     ctx.fill();
   });
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-  ctx.font = "12px App Sans, Segoe UI, sans-serif";
+  ctx.font = '12px "Hanken Grotesk Local"';
   ctx.fillText("6 ay", padding, height - 8);
   ctx.fillText(formatCurrencyShort(max), width - padding - 42, 18);
 }
@@ -2085,7 +2269,7 @@ function drawEmptyCanvasState(ctx, width, height, label) {
   ctx.save();
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-  ctx.font = "14px App Sans, Segoe UI, sans-serif";
+  ctx.font = '14px "Hanken Grotesk Local"';
   ctx.textAlign = "center";
   ctx.fillText(label, width / 2, height / 2);
   ctx.restore();
@@ -2382,7 +2566,7 @@ function getLogoAssetPath(record) {
   const catalogMatch = state.catalog.find((item) => slugifyLogoKey(item.name) === key);
   const slug = catalogMatch?.logo || key;
   const asset = KNOWN_LOGO_ASSETS[slug] || "";
-  return asset ? asset.replace(/\.svg$/, ".png") : "";
+  return asset;
 }
 
 function createLogoDataUri({ label, color, title, subtitle }) {
@@ -2419,6 +2603,10 @@ function guessMonogram(value) {
 const KNOWN_LOGO_ASSETS = {
   netflix: "./assets/logos/netflix.svg",
   spotify: "./assets/logos/spotify.svg",
+  spotifypremiumbireysel: "./assets/logos/spotify.svg",
+  spotifypremiumduo: "./assets/logos/spotify.svg",
+  spotifypremiumaile: "./assets/logos/spotify.svg",
+  spotifypremiumogrenci: "./assets/logos/spotify.svg",
   youtubepremium: "./assets/logos/youtube-premium.svg",
   disney: "./assets/logos/disney-plus.svg",
   disneyplus: "./assets/logos/disney-plus.svg",
@@ -2427,11 +2615,23 @@ const KNOWN_LOGO_ASSETS = {
   icloud: "./assets/logos/icloud.svg",
   icloudplus: "./assets/logos/icloud.svg",
   googleone: "./assets/logos/google-one.svg",
+  googleonebasic: "./assets/logos/google-one.svg",
+  googleonestandard: "./assets/logos/google-one.svg",
+  googleonepremium: "./assets/logos/google-one.svg",
   notion: "./assets/logos/notion.svg",
   notionplus: "./assets/logos/notion.svg",
   chatgpt: "./assets/logos/chatgpt.svg",
+  chatgptgo: "./assets/logos/chatgpt.svg",
   chatgptplus: "./assets/logos/chatgpt.svg",
+  chatgptpro: "./assets/logos/chatgpt.svg",
+  chatgptbusiness: "./assets/logos/chatgpt.svg",
   claudepro: "./assets/logos/claude.svg",
+  claudemax5x: "./assets/logos/claude.svg",
+  claudemax20x: "./assets/logos/claude.svg",
+  claudeteam: "./assets/logos/claude.svg",
+  gemini: "./assets/logos/gemini.svg",
+  googleaipro: "./assets/logos/gemini.svg",
+  googleaiultra: "./assets/logos/gemini.svg",
   figmaprofessional: "./assets/logos/figma.svg",
   canvapro: "./assets/logos/canva.svg",
   adobecreativecloud: "./assets/logos/adobe.svg",
@@ -2439,6 +2639,9 @@ const KNOWN_LOGO_ASSETS = {
   blutv: "./assets/logos/blutv.svg",
   mubi: "./assets/logos/mubi.svg",
   xboxgamepass: "./assets/logos/xbox.svg",
+  xboxgamepassultimate: "./assets/logos/xbox.svg",
+  xboxgamepasspc: "./assets/logos/xbox.svg",
+  xbox: "./assets/logos/xbox.svg",
   playstationplus: "./assets/logos/playstation.svg",
   githubcopilot: "./assets/logos/github-copilot.svg",
   bitwardenpremium: "./assets/logos/bitwarden.svg",
@@ -2447,8 +2650,18 @@ const KNOWN_LOGO_ASSETS = {
   mediummember: "./assets/logos/medium.svg",
   patreon: "./assets/logos/patreon.svg",
   microsoft365: "./assets/logos/microsoft365.svg",
+  microsoft365personal: "./assets/logos/microsoft365.svg",
+  linkedin: "./assets/logos/linkedin.svg",
+  linkedinpremiumcareer: "./assets/logos/linkedin.svg",
+  linkedinpremiumbusiness: "./assets/logos/linkedin.svg",
+  linkedinpremiumduocareer: "./assets/logos/linkedin.svg",
+  linkedinpremiumduobusiness: "./assets/logos/linkedin.svg",
+  linkedinpremiumallinone: "./assets/logos/linkedin.svg",
+  linkedinpremiumcompanypage: "./assets/logos/linkedin.svg",
   trendyol: "./assets/logos/trendyol.svg",
+  trendyolplus: "./assets/logos/trendyol.svg",
   hepsiburada: "./assets/logos/hepsiburada.svg",
+  hepsiburadapremium: "./assets/logos/hepsiburada.svg",
   ciceksepeti: "./assets/logos/ciceksepeti.svg",
   getir: "./assets/logos/getir.svg",
   yemeksepeti: "./assets/logos/yemeksepeti.svg",
@@ -2461,7 +2674,13 @@ const KNOWN_LOGO_ASSETS = {
   lcwaikiki: "./assets/logos/lcwaikiki.svg",
   defacto: "./assets/logos/defacto.svg",
   amazonturkiye: "./assets/logos/amazon-tr.svg",
-  n11: "./assets/logos/n11.svg"
+  n11: "./assets/logos/n11.svg",
+  vodafone: "./assets/logos/vodafone.svg",
+  vodafonefaturalihat: "./assets/logos/vodafone.svg",
+  turktelekom: "./assets/logos/turktelekom.svg",
+  turktelekomfaturalihat: "./assets/logos/turktelekom.svg",
+  turkcell: "./assets/logos/turkcell.svg",
+  turkcellfaturalihat: "./assets/logos/turkcell.svg"
 };
 
 function slugifyLogoKey(value) {
@@ -2593,9 +2812,20 @@ function severityScore(value) {
 }
 
 function getCategoryColor(category) {
-  const palette = ["#0A66D9", "#13B7C9", "#0D9476", "#5CAEFF", "#325AD7", "#7BC4FF", "#0053A0"];
+  const palette = ["#0A66D9", "#2E6BFF", "#13B7C9", "#0098D8", "#0D9476", "#10A37F", "#5D3EBC", "#7D3CB5", "#F27A1A", "#FF6000", "#FA2D65", "#003791"];
   const hash = Array.from(category || "").reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[hash % palette.length];
+}
+
+function syncColorPresetStates() {
+  document.querySelectorAll("[data-color-palette]").forEach((palette) => {
+    const target = palette.dataset.colorPalette;
+    const field = dom.subscriptionForm.elements.namedItem(target);
+    const currentValue = String(field?.value || "").toLowerCase();
+    palette.querySelectorAll("[data-color-value]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.colorValue.toLowerCase() === currentValue);
+    });
+  });
 }
 
 function getEmptyStateMarkup(icon, title, description) {
@@ -2901,7 +3131,6 @@ function maybeShowOnboarding() {
 
 function renderOnboardingStep() {
   const step = ONBOARDING_STEPS[state.onboardingStep] || ONBOARDING_STEPS[0];
-  dom.onboardingIcon.textContent = step.icon;
   dom.onboardingTitle.textContent = step.title;
   dom.onboardingBody.textContent = step.body;
   dom.nextOnboardingBtn.textContent = state.onboardingStep === ONBOARDING_STEPS.length - 1 ? "Başla" : "Devam";

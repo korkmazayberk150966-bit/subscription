@@ -18,15 +18,7 @@
   <body>
     <div class="app-shell">
       <header class="app-header">
-        <div class="app-header-stack">
-          <p id="appHeaderMeta" class="app-header-meta">Bugünün özeti</p>
-          <div class="app-header-row">
-            <h1 id="appHeaderTitle" class="app-header-title">Özet</h1>
-            <button id="headerUtilityBtn" class="icon-ghost hidden" type="button" aria-label="Ekran işlemleri">
-              <span></span><span></span><span></span>
-            </button>
-          </div>
-        </div>
+        <h1 id="appHeaderTitle" class="app-header-title">Özet</h1>
       </header>
 
       <main class="app-content">
@@ -45,7 +37,18 @@
                 </div>
               </div>
             </div>
-            <div class="hero-metrics">
+            <div class="hero-budget-card">
+              <div class="hero-budget-copy">
+                <small>Bütçe ilerlemesi</small>
+                <strong id="budgetProgressValue">Hedef ekle</strong>
+                <p id="budgetProgressHint">Aylık hedef belirlediğinde bu ay ki ritmi burada göreceksin.</p>
+              </div>
+              <div class="hero-budget-meter" aria-hidden="true">
+                <span class="hero-budget-track"></span>
+                <span id="budgetProgressFill" class="hero-budget-fill"></span>
+              </div>
+            </div>
+            <div class="hero-metrics hero-metrics-grid">
               <article>
                 <span>Yıllık Projeksiyon</span>
                 <strong id="yearlyProjection">0 TL</strong>
@@ -190,8 +193,8 @@
               <button type="button" class="segment-chip" data-analytics-view="trend">Trend</button>
               <button type="button" class="segment-chip" data-analytics-view="categories">Kategoriler</button>
             </div>
-            <div class="overview-grid">
-              <article class="subpanel chart-card" data-analytics-section="general categories">
+            <div class="overview-grid analytics-flow">
+              <article class="subpanel chart-card analytics-hero" data-analytics-section="general categories">
                 <div class="subpanel-header">
                   <h3>Kategori Dağılımı</h3>
                   <span id="categoryLegendSummary">Veri yok</span>
@@ -224,14 +227,6 @@
                 <div id="cancellationList" class="rank-list empty-state"></div>
               </article>
 
-              <article class="subpanel" data-analytics-section="general trend">
-                <div class="subpanel-header">
-                  <h3>Yıl Sonu Özeti</h3>
-                  <span id="yearSummaryLabel">Bu yıl</span>
-                </div>
-                <div id="yearSummary" class="summary-card-list"></div>
-              </article>
-
               <article class="subpanel" data-analytics-section="general categories">
                 <div class="subpanel-header">
                   <h3>Aktif Denemeler</h3>
@@ -246,14 +241,6 @@
                   <span>İptal edilenler</span>
                 </div>
                 <div id="archiveSummary" class="summary-card-list"></div>
-              </article>
-
-              <article class="subpanel wrapped-stage" data-analytics-section="general trend">
-                <div class="subpanel-header">
-                  <h3>Yıl Sonu Wrapped</h3>
-                  <span>Kaydırmalı özet</span>
-                </div>
-                <div id="wrappedSummary" class="wrapped-summary"></div>
               </article>
 
               <article class="subpanel" data-analytics-section="general trend">
@@ -301,57 +288,75 @@
               </div>
             </div>
             <form id="settingsForm" class="settings-grid">
-              <label>
-                <span>Aylık bütçe hedefi (TL)</span>
-                <input name="monthlyBudget" type="number" min="0" step="0.01" />
-              </label>
-              <label>
-                <span>USD kuru</span>
-                <input name="usdRate" type="number" min="0" step="0.01" />
-              </label>
-              <label>
-                <span>EUR kuru</span>
-                <input name="eurRate" type="number" min="0" step="0.01" />
-              </label>
+              <div class="settings-group full-width">
+                <p class="settings-group-title">Bütçe ve Kur</p>
+                <label>
+                  <span>Aylık bütçe hedefi (TL)</span>
+                  <input name="monthlyBudget" type="number" min="0" step="0.01" />
+                </label>
+                <label>
+                  <span>USD kuru</span>
+                  <input name="usdRate" type="number" min="0" step="0.01" />
+                </label>
+                <label>
+                  <span>EUR kuru</span>
+                  <input name="eurRate" type="number" min="0" step="0.01" />
+                </label>
+              </div>
               <div class="rate-tools full-width">
                 <button id="refreshRatesBtn" class="ghost-button" type="button">Canlı kuru çek</button>
                 <p id="ratesMeta" class="rates-meta">Son güncelleme: Henüz çekilmedi</p>
               </div>
-              <label>
-                <span>Yenileme uyarısı (gün)</span>
-                <input name="renewalReminderDays" type="number" min="0" step="1" />
-              </label>
-              <label>
-                <span>Deneme uyarısı (gün)</span>
-                <input name="trialReminderDays" type="number" min="0" step="1" />
-              </label>
-              <label>
-                <span>Büyük ödeme eşiği (TL / yıl)</span>
-                <input name="highAnnualThreshold" type="number" min="0" step="1" />
-              </label>
-              <label>
-                <span>Kahve referans fiyatı (TL)</span>
-                <input name="coffeePrice" type="number" min="1" step="1" />
-              </label>
-              <label>
-                <span>1 hafta tatil bütçesi (TL)</span>
-                <input name="vacationBudget" type="number" min="100" step="100" />
-              </label>
-              <label>
-                <span>Denetim hatırlatması (ay)</span>
-                <select name="auditReminderMonths" class="native-hidden-control">
-                  <option value="3">3 ay</option>
-                  <option value="6">6 ay</option>
-                </select>
-                <button class="picker-trigger" type="button" data-picker-target="auditReminderMonths" data-picker-title="Denetim hatırlatması">
-                  <span>3 ay</span>
-                  <strong>Seç</strong>
-                </button>
-              </label>
-              <label class="checkbox-row">
-                <input name="notificationsEnabled" type="checkbox" />
-                <span>Tarayıcı bildirimi kullan</span>
-              </label>
+              <div class="settings-group full-width">
+                <p class="settings-group-title">Hatırlatmalar ve Görünüm</p>
+                <label>
+                  <span>Yenileme uyarısı (gün)</span>
+                  <input name="renewalReminderDays" type="number" min="0" step="1" />
+                </label>
+                <label>
+                  <span>Deneme uyarısı (gün)</span>
+                  <input name="trialReminderDays" type="number" min="0" step="1" />
+                </label>
+                <label>
+                  <span>Büyük ödeme eşiği (TL / yıl)</span>
+                  <input name="highAnnualThreshold" type="number" min="0" step="1" />
+                </label>
+                <label>
+                  <span>Kahve referans fiyatı (TL)</span>
+                  <input name="coffeePrice" type="number" min="1" step="1" />
+                </label>
+                <label>
+                  <span>1 hafta tatil bütçesi (TL)</span>
+                  <input name="vacationBudget" type="number" min="100" step="100" />
+                </label>
+                <label>
+                  <span>Denetim hatırlatması (ay)</span>
+                  <select name="auditReminderMonths" class="native-hidden-control">
+                    <option value="3">3 ay</option>
+                    <option value="6">6 ay</option>
+                  </select>
+                  <button class="picker-trigger" type="button" data-picker-target="auditReminderMonths" data-picker-title="Denetim hatırlatması">
+                    <span>3 ay</span>
+                    <strong>Seç</strong>
+                  </button>
+                </label>
+                <label>
+                  <span>Tema</span>
+                  <select name="theme" class="native-hidden-control">
+                    <option value="system">Sistem</option>
+                    <option value="light">Açık</option>
+                    <option value="dark">Koyu</option>
+                  </select>
+                  <button class="picker-trigger" type="button" data-picker-target="theme" data-picker-title="Tema">
+                    <span>Sistem</span>
+                    <strong>Seç</strong>
+                  </button>
+                </label>
+                <label class="checkbox-row">
+                  <input name="notificationsEnabled" type="checkbox" />
+                  <span>Tarayıcı bildirimi kullan</span>
+                </label>
+              </div>
               <div class="settings-actions">
                 <button class="primary-button" type="submit">Ayarları Kaydet</button>
                 <button id="requestNotificationBtn" class="ghost-button" type="button">Bildirim İzni İste</button>
@@ -517,6 +522,24 @@
           <label>
             <span>Renk</span>
             <input name="color" required type="color" />
+            <div class="color-palette" data-color-palette="color" aria-label="Marka rengi seçenekleri">
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#0A66D9" style="--swatch:#0A66D9" aria-label="Mavi"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#2E6BFF" style="--swatch:#2E6BFF" aria-label="Parlak mavi"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#13B7C9" style="--swatch:#13B7C9" aria-label="Turkuaz"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#0098D8" style="--swatch:#0098D8" aria-label="Camgöbeği"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#0D9476" style="--swatch:#0D9476" aria-label="Yeşil"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#10A37F" style="--swatch:#10A37F" aria-label="Nane"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#5D3EBC" style="--swatch:#5D3EBC" aria-label="Mor"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#7D3CB5" style="--swatch:#7D3CB5" aria-label="Eflatun"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#E50914" style="--swatch:#E50914" aria-label="Kırmızı"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#FF6000" style="--swatch:#FF6000" aria-label="Turuncu"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#F27A1A" style="--swatch:#F27A1A" aria-label="Amber"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#FFC20E" style="--swatch:#FFC20E" aria-label="Sarı"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#FA2D65" style="--swatch:#FA2D65" aria-label="Pembe"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#003791" style="--swatch:#003791" aria-label="Lacivert"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#111827" style="--swatch:#111827" aria-label="Antrasit"></button>
+              <button type="button" class="color-swatch" data-color-target="color" data-color-value="#6B7280" style="--swatch:#6B7280" aria-label="Gri"></button>
+            </div>
           </label>
           <label>
             <span>Değiyor mu? (1-5)</span>
@@ -581,6 +604,24 @@
             <label>
               <span>Marka rengi</span>
               <input name="installmentColor" type="color" />
+              <div class="color-palette" data-color-palette="installmentColor" aria-label="Taksit marka rengi seçenekleri">
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#0A66D9" style="--swatch:#0A66D9" aria-label="Mavi"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#2E6BFF" style="--swatch:#2E6BFF" aria-label="Parlak mavi"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#13B7C9" style="--swatch:#13B7C9" aria-label="Turkuaz"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#0098D8" style="--swatch:#0098D8" aria-label="Camgöbeği"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#0D9476" style="--swatch:#0D9476" aria-label="Yeşil"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#10A37F" style="--swatch:#10A37F" aria-label="Nane"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#5D3EBC" style="--swatch:#5D3EBC" aria-label="Mor"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#7D3CB5" style="--swatch:#7D3CB5" aria-label="Eflatun"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#E50914" style="--swatch:#E50914" aria-label="Kırmızı"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#FF6000" style="--swatch:#FF6000" aria-label="Turuncu"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#F27A1A" style="--swatch:#F27A1A" aria-label="Amber"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#FFC20E" style="--swatch:#FFC20E" aria-label="Sarı"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#FA2D65" style="--swatch:#FA2D65" aria-label="Pembe"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#003791" style="--swatch:#003791" aria-label="Lacivert"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#111827" style="--swatch:#111827" aria-label="Antrasit"></button>
+                <button type="button" class="color-swatch" data-color-target="installmentColor" data-color-value="#6B7280" style="--swatch:#6B7280" aria-label="Gri"></button>
+              </div>
             </label>
             <label class="notes-field full-width">
               <span>Notlar</span>
@@ -649,6 +690,48 @@
       </form>
     </dialog>
 
+    <dialog id="recordDetailDialog" class="app-dialog">
+      <div class="dialog-form narrow detail-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Kayıt Detayı</p>
+            <h2 id="detailSheetTitle">Abonelik</h2>
+          </div>
+          <button id="closeDetailDialogBtn" class="icon-button" type="button" aria-label="Kapat">×</button>
+        </div>
+        <article class="detail-preview-card detail-preview-card-static">
+          <div class="detail-preview-logo" id="detailSheetLogo">A</div>
+          <div class="detail-preview-copy">
+            <p id="detailSheetType" class="detail-preview-type">Abonelik</p>
+            <h3 id="detailSheetName">Yeni kayıt</h3>
+            <p id="detailSheetPrice">0 TL</p>
+          </div>
+        </article>
+        <div id="detailSheetStats" class="summary-card-list"></div>
+        <p id="detailSheetNotes" class="detail-sheet-notes"></p>
+        <div class="dialog-actions detail-sheet-actions">
+          <button id="detailRemindBtn" class="ghost-button" type="button">Hatırlat</button>
+          <button id="detailEditBtn" class="ghost-button" type="button">Düzenle</button>
+          <button id="detailArchiveBtn" class="danger-button" type="button">Arşive Taşı</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="calendarDetailDialog" class="app-dialog">
+      <div class="dialog-form narrow picker-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Nakit Akışı</p>
+            <h2 id="calendarDetailTitle">Gün Özeti</h2>
+          </div>
+          <button id="closeCalendarDetailDialogBtn" class="icon-button" type="button" aria-label="Kapat">×</button>
+        </div>
+        <div id="calendarDetailList" class="picker-options detail-list"></div>
+      </div>
+    </dialog>
+
     <dialog id="onboardingDialog" class="app-dialog app-dialog-centered">
       <div class="dialog-form narrow onboarding-shell">
         <div class="sheet-grabber" aria-hidden="true"></div>
@@ -659,7 +742,9 @@
           </div>
         </div>
         <div class="onboarding-card">
-          <div id="onboardingIcon" class="onboarding-icon">✦</div>
+          <div id="onboardingIcon" class="onboarding-icon">
+            <img src="assets/icons/akce-source-logo.png" alt="Akçe logosu" />
+          </div>
           <p id="onboardingBody" class="onboarding-body">
             Aboneliklerini, taksitlerini ve denemelerini aynı uygulamada sakin bir şekilde takip et.
           </p>

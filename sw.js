@@ -1,4 +1,4 @@
-const CACHE_NAME = "abonelik-takibi-v9";
+const CACHE_NAME = "abonelik-takibi-v11";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -27,6 +27,7 @@ const APP_SHELL = [
   "./assets/logos/apple-music.svg",
   "./assets/logos/icloud.svg",
   "./assets/logos/google-one.svg",
+  "./assets/logos/gemini.svg",
   "./assets/logos/figma.svg",
   "./assets/logos/canva.svg",
   "./assets/logos/chatgpt.svg",
@@ -44,6 +45,7 @@ const APP_SHELL = [
   "./assets/logos/medium.svg",
   "./assets/logos/patreon.svg",
   "./assets/logos/microsoft365.svg",
+  "./assets/logos/linkedin.svg",
   "./assets/logos/trendyol.svg",
   "./assets/logos/hepsiburada.svg",
   "./assets/logos/ciceksepeti.svg",
@@ -58,7 +60,10 @@ const APP_SHELL = [
   "./assets/logos/lcwaikiki.svg",
   "./assets/logos/defacto.svg",
   "./assets/logos/amazon-tr.svg",
-  "./assets/logos/n11.svg"
+  "./assets/logos/n11.svg",
+  "./assets/logos/vodafone.svg",
+  "./assets/logos/turktelekom.svg",
+  "./assets/logos/turkcell.svg"
 ];
 
 self.addEventListener("install", (event) => {
