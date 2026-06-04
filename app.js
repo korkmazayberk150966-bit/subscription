@@ -2294,7 +2294,7 @@ function monthlyOccurrenceForMonth(record, year, month) {
     if (backIter.getFullYear() === year && backIter.getMonth() === month) {
       return record.billingCycle === "quarterly" ? annualTl / 4 : annualTl;
     }
-    backIter.setTime(addCycle(backIter, record.billingCycle, false).getTime());
+    backIter.setTime(addCycle(backIter, record.billingCycle, true).getTime());
     if (backIter.getFullYear() < year || (backIter.getFullYear() === year && backIter.getMonth() < month)) {
       break;
     }
