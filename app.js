@@ -2882,7 +2882,18 @@ function isInstallment(record) {
 }
 
 function createId(prefix) {
-  return `${prefix}-${crypto.randomUUID()}`;
+  const browserCrypto = window.crypto || window.msCrypto;
+  if (browserCrypto?.randomUUID) {
+    return `${prefix}-${browserCrypto.randomUUID()}`;
+  }
+
+  if (browserCrypto?.getRandomValues) {
+    const bytes = new Uint32Array(4);
+    browserCrypto.getRandomValues(bytes);
+    return `${prefix}-${Array.from(bytes, (value) => value.toString(16).padStart(8, "0")).join("")}`;
+  }
+
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function normalizeText(value) {
