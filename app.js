@@ -158,6 +158,7 @@ const dom = {
   resetFormBtn: $("#resetFormBtn"),
   archiveBtn: $("#archiveBtn"),
   recordTypeSelect: $("#recordTypeSelect"),
+  catalogCategorySelect: $("#catalogCategorySelect"),
   catalogSelect: $("#catalogSelect"),
   catalogPickerBtn: $("#catalogPickerBtn"),
   subscriptionFields: $("#subscriptionFields"),
@@ -214,6 +215,7 @@ async function init() {
   await loadState();
   state.displayMode = window.localStorage.getItem("abonelik-view-mode") || "monthly";
   applyTheme(state.settings.theme || "system");
+  populateCatalogCategorySelect();
   populateCatalogSelect();
   populateSettingsForm();
   populatePaymentSubscriptions();
@@ -386,6 +388,7 @@ function bindEvents() {
   dom.sortPickerBtn.addEventListener("click", () => openPickerFromSelect(dom.sortFilter, "Sırala"));
   dom.monthlyViewBtn.addEventListener("click", () => setDisplayMode("monthly"));
   dom.yearlyViewBtn.addEventListener("click", () => setDisplayMode("yearly"));
+  dom.catalogCategorySelect.addEventListener("change", handleCatalogCategoryChange);
   dom.catalogSelect.addEventListener("change", handleCatalogSelection);
   dom.recordTypeSelect.addEventListener("change", syncFormMode);
   dom.paymentSubscriptionSelect.addEventListener("change", autoFillPaymentAmount);
@@ -525,13 +528,40 @@ function bindEvents() {
 }
 
 function populateCatalogSelect() {
+  const recordType = dom.recordTypeSelect?.value || "subscription";
+  const selectedCategory = dom.catalogCategorySelect?.value || "";
+  const previousValue = dom.catalogSelect?.value || "";
   dom.catalogSelect.innerHTML = '<option value="">Elle doldur</option>';
-  state.catalog.forEach((item) => {
+  const visibleItems = state.catalog
+    .filter((item) => item.recordType === recordType)
+    .filter((item) => !selectedCategory || item.category === selectedCategory);
+  visibleItems.forEach((item) => {
     const option = document.createElement("option");
     option.value = item.name;
     option.textContent = `${item.name} • ${item.category}`;
     dom.catalogSelect.append(option);
   });
+  dom.catalogSelect.value = visibleItems.some((item) => item.name === previousValue) ? previousValue : "";
+}
+
+function populateCatalogCategorySelect() {
+  const recordType = dom.recordTypeSelect?.value || "subscription";
+  const previousValue = dom.catalogCategorySelect?.value || "";
+  const categories = [...new Set(
+    state.catalog
+      .filter((item) => item.recordType === recordType)
+      .map((item) => item.category)
+      .filter(Boolean)
+  )].sort((left, right) => left.localeCompare(right, "tr"));
+
+  dom.catalogCategorySelect.innerHTML = '<option value="">Tüm kategoriler</option>';
+  categories.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    dom.catalogCategorySelect.append(option);
+  });
+  dom.catalogCategorySelect.value = categories.includes(previousValue) ? previousValue : "";
 }
 
 function populatePaymentSubscriptions() {
@@ -585,6 +615,7 @@ function resetRecordForm() {
   setFieldValue("nextPaymentDate", todayIso());
   setFieldValue("startDate", todayIso());
   setFieldValue("installmentCategory", "Taksitli Alışveriş");
+  dom.catalogCategorySelect.value = "";
   dom.catalogSelect.value = "";
   syncFormMode();
   syncNativeControls();
@@ -770,8 +801,18 @@ function syncFormMode() {
   const installmentMode = dom.recordTypeSelect.value === "installment";
   dom.subscriptionFields.classList.toggle("hidden", installmentMode);
   dom.installmentFields.classList.toggle("hidden", !installmentMode);
+  toggleGroupDisabled(dom.subscriptionFields, installmentMode);
+  toggleGroupDisabled(dom.installmentFields, !installmentMode);
+  populateCatalogCategorySelect();
+  populateCatalogSelect();
   syncNativeControls();
   updateDetailPreview();
+}
+
+function toggleGroupDisabled(group, disabled) {
+  group.querySelectorAll("input, select, textarea, button").forEach((field) => {
+    field.disabled = disabled;
+  });
 }
 
 function updateDetailPreview() {
@@ -1079,6 +1120,9 @@ function handleCatalogSelection() {
   if (!selected) {
     return;
   }
+  if (dom.catalogCategorySelect) {
+    dom.catalogCategorySelect.value = selected.category || "";
+  }
   if (selected.recordType === "installment") {
     setFieldValue("recordType", "installment");
     setFieldValue("merchant", selected.name);
@@ -1097,6 +1141,12 @@ function handleCatalogSelection() {
   }
   syncFormMode();
   updateDetailPreview();
+}
+
+function handleCatalogCategoryChange() {
+  dom.catalogSelect.value = "";
+  populateCatalogSelect();
+  syncNativeControls();
 }
 
 function autoFillPaymentAmount() {
@@ -2009,6 +2059,9 @@ function setRecordType(type) {
 }
 
 function resolvePickerTarget(targetName) {
+  if (targetName === "catalogCategorySelect") {
+    return dom.catalogCategorySelect;
+  }
   if (targetName === "catalogSelect") {
     return dom.catalogSelect;
   }
@@ -2620,11 +2673,11 @@ const KNOWN_LOGO_ASSETS = {
   googleonepremium: "./assets/logos/google-one.svg",
   notion: "./assets/logos/notion.svg",
   notionplus: "./assets/logos/notion.svg",
-  chatgpt: "./assets/logos/chatgpt.svg",
-  chatgptgo: "./assets/logos/chatgpt.svg",
-  chatgptplus: "./assets/logos/chatgpt.svg",
-  chatgptpro: "./assets/logos/chatgpt.svg",
-  chatgptbusiness: "./assets/logos/chatgpt.svg",
+  chatgpt: "./assets/logos/chatgpt.png",
+  chatgptgo: "./assets/logos/chatgpt.png",
+  chatgptplus: "./assets/logos/chatgpt.png",
+  chatgptpro: "./assets/logos/chatgpt.png",
+  chatgptbusiness: "./assets/logos/chatgpt.png",
   claudepro: "./assets/logos/claude.svg",
   claudemax5x: "./assets/logos/claude.svg",
   claudemax20x: "./assets/logos/claude.svg",

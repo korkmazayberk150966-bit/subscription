@@ -1,4 +1,4 @@
-const CACHE_NAME = "abonelik-takibi-v11";
+const CACHE_NAME = "abonelik-takibi-v12";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,6 +31,7 @@ const APP_SHELL = [
   "./assets/logos/figma.svg",
   "./assets/logos/canva.svg",
   "./assets/logos/chatgpt.svg",
+  "./assets/logos/chatgpt.png",
   "./assets/logos/claude.svg",
   "./assets/logos/adobe.svg",
   "./assets/logos/exxen.svg",
