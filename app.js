@@ -870,96 +870,102 @@ function buildInstallmentPreviewLine() {
 
 async function handleRecordSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(dom.subscriptionForm);
-  const existing = state.records.find((item) => item.id === state.editingId);
-  const recordType = formData.get("recordType") || "subscription";
-  let record;
+  try {
+    const formData = new FormData(dom.subscriptionForm);
+    const existing = state.records.find((item) => item.id === state.editingId);
+    const recordType = formData.get("recordType") || "subscription";
+    let record;
 
-  if (recordType === "installment") {
-    const merchant = normalizeText(formData.get("merchant"));
-    const productName = normalizeText(formData.get("productName"));
-    const totalInstallments = Number(formData.get("totalInstallments") || 0);
-    const totalAmount = Number(formData.get("totalAmount") || 0);
-    const monthlyInstallment = Number(formData.get("monthlyInstallment") || 0);
-    const startDate = formData.get("startDate") || "";
-    if (!merchant || !productName || !totalInstallments || !startDate || (!totalAmount && !monthlyInstallment)) {
-      showToast("Taksitli kayıt için zorunlu alanları doldur.");
-      return;
-    }
-    const normalizedMonthly = monthlyInstallment || totalAmount / totalInstallments;
-    const normalizedTotal = totalAmount || normalizedMonthly * totalInstallments;
-    record = normalizeRecord({
-      id: existing?.id || createId("rec"),
-      recordType: "installment",
-      merchant,
-      productName,
-      name: merchant,
-      totalAmount: roundMoney(normalizedTotal),
-      monthlyInstallment: roundMoney(normalizedMonthly),
-      totalInstallments,
-      startDate,
-      category: normalizeText(formData.get("installmentCategory")) || "Taksitli Alışveriş",
-      notes: normalizeText(formData.get("installmentNotes")),
-      color: formData.get("installmentColor") || "#0A66D9",
-      icon: guessMonogram(merchant),
-      paymentMethod: existing?.paymentMethod || "Kart",
-      currency: "TRY",
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-  } else {
-    const nextPriceHistory = [...(existing?.priceHistory || [])];
-    if (
-      existing &&
-      !isInstallment(existing) &&
-      (Number(existing.price) !== Number(formData.get("price")) ||
-        existing.currency !== formData.get("currency") ||
-        existing.billingCycle !== formData.get("billingCycle"))
-    ) {
-      nextPriceHistory.unshift({
-        amount: Number(existing.price || 0),
-        currency: existing.currency || "TRY",
-        billingCycle: existing.billingCycle || "monthly",
-        recordedAt: new Date().toISOString()
+    if (recordType === "installment") {
+      const merchant = normalizeText(formData.get("merchant"));
+      const productName = normalizeText(formData.get("productName"));
+      const totalInstallments = Number(formData.get("totalInstallments") || 0);
+      const totalAmount = Number(formData.get("totalAmount") || 0);
+      const monthlyInstallment = Number(formData.get("monthlyInstallment") || 0);
+      const startDate = formData.get("startDate") || "";
+      if (!merchant || !productName || !totalInstallments || !startDate || (!totalAmount && !monthlyInstallment)) {
+        showToast("Taksitli kayıt için zorunlu alanları doldur.");
+        return;
+      }
+      const normalizedMonthly = monthlyInstallment || totalAmount / totalInstallments;
+      const normalizedTotal = totalAmount || normalizedMonthly * totalInstallments;
+      record = normalizeRecord({
+        id: existing?.id || createId("rec"),
+        recordType: "installment",
+        merchant,
+        productName,
+        name: merchant,
+        totalAmount: roundMoney(normalizedTotal),
+        monthlyInstallment: roundMoney(normalizedMonthly),
+        totalInstallments,
+        startDate,
+        category: normalizeText(formData.get("installmentCategory")) || "Taksitli Alışveriş",
+        notes: normalizeText(formData.get("installmentNotes")),
+        color: formData.get("installmentColor") || "#0A66D9",
+        icon: guessMonogram(merchant),
+        paymentMethod: existing?.paymentMethod || "Kart",
+        currency: "TRY",
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
+    } else {
+      const rawPrice = formData.get("price");
+      const nextPriceHistory = [...(existing?.priceHistory || [])];
+      if (
+        existing &&
+        !isInstallment(existing) &&
+        (Number(existing.price) !== Number(rawPrice) ||
+          existing.currency !== formData.get("currency") ||
+          existing.billingCycle !== formData.get("billingCycle"))
+      ) {
+        nextPriceHistory.unshift({
+          amount: Number(existing.price || 0),
+          currency: existing.currency || "TRY",
+          billingCycle: existing.billingCycle || "monthly",
+          recordedAt: new Date().toISOString()
+        });
+      }
+      record = normalizeRecord({
+        id: existing?.id || createId("rec"),
+        recordType: "subscription",
+        name: normalizeText(formData.get("name")),
+        price: Number(rawPrice),
+        currency: formData.get("currency"),
+        billingCycle: formData.get("billingCycle"),
+        nextPaymentDate: formData.get("nextPaymentDate"),
+        trialEndDate: formData.get("trialEndDate") || "",
+        category: normalizeText(formData.get("category")),
+        paymentMethod: normalizeText(formData.get("paymentMethod")),
+        status: formData.get("status"),
+        icon: normalizeText(formData.get("icon")).slice(0, 2) || guessMonogram(formData.get("name")),
+        color: formData.get("color") || "#0A66D9",
+        notes: normalizeText(formData.get("notes")),
+        valueScore: Number(formData.get("valueScore") || 3),
+        lastUsedDate: formData.get("lastUsedDate") || "",
+        usageFrequency: formData.get("usageFrequency") || "medium",
+        isPriceIncreased: formData.get("isPriceIncreased") === "on",
+        priceHistory: nextPriceHistory.slice(0, 12),
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      if (!record.name || rawPrice === "" || !record.category || !record.nextPaymentDate) {
+        showToast("Lütfen isim, ücret, kategori ve sonraki ödeme tarihini doldur.");
+        return;
+      }
     }
-    record = normalizeRecord({
-      id: existing?.id || createId("rec"),
-      recordType: "subscription",
-      name: normalizeText(formData.get("name")),
-      price: Number(formData.get("price")),
-      currency: formData.get("currency"),
-      billingCycle: formData.get("billingCycle"),
-      nextPaymentDate: formData.get("nextPaymentDate"),
-      trialEndDate: formData.get("trialEndDate") || "",
-      category: normalizeText(formData.get("category")),
-      paymentMethod: normalizeText(formData.get("paymentMethod")),
-      status: formData.get("status"),
-      icon: normalizeText(formData.get("icon")).slice(0, 2) || guessMonogram(formData.get("name")),
-      color: formData.get("color"),
-      notes: normalizeText(formData.get("notes")),
-      valueScore: Number(formData.get("valueScore") || 3),
-      lastUsedDate: formData.get("lastUsedDate") || "",
-      usageFrequency: formData.get("usageFrequency") || "medium",
-      isPriceIncreased: formData.get("isPriceIncreased") === "on",
-      priceHistory: nextPriceHistory.slice(0, 12),
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-    if (!record.name || !record.category || !record.nextPaymentDate || Number.isNaN(record.price)) {
-      showToast("Lütfen zorunlu alanları doldur.");
-      return;
-    }
-  }
 
-  await putRecord("subscriptions", record);
-  await loadState();
-  populatePaymentSubscriptions();
-  renderAll();
-  dom.subscriptionDialog.close();
-  syncSheetState();
-  showToast(existing ? "Kayıt güncellendi." : "Kayıt eklendi.");
-  await maybeResolveExpiredTrials();
+    await putRecord("subscriptions", record);
+    await loadState();
+    populatePaymentSubscriptions();
+    renderAll();
+    dom.subscriptionDialog.close();
+    syncSheetState();
+    showToast(existing ? "Kayıt güncellendi." : "Kayıt eklendi.");
+    await maybeResolveExpiredTrials();
+  } catch (error) {
+    console.error(error);
+    showToast("Kayıt kaydedilemedi. Lütfen tekrar dene.");
+  }
 }
 
 async function archiveRecord(record, options = {}) {
@@ -1019,6 +1025,10 @@ async function handlePaymentSubmit(event) {
   const record = state.records.find((item) => item.id === recordId);
   if (!record) {
     showToast("Geçerli kayıt seçilemedi.");
+    return;
+  }
+  if (!formData.get("paidAt") || formData.get("amount") === "") {
+    showToast("Ödeme tarihi ve tutarı zorunlu.");
     return;
   }
   const amount = Number(formData.get("amount"));
