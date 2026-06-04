@@ -1144,6 +1144,12 @@ body[data-theme="dark"] .bottom-nav {
   color: var(--primary);
 }
 
+.primary-button.is-busy,
+.ghost-button.is-busy,
+.danger-button.is-busy {
+  opacity: 0.78;
+}
+
 .tab-icon {
   width: 22px;
   height: 22px;

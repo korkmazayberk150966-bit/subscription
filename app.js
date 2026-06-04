@@ -156,6 +156,7 @@ const dom = {
   dialogTitle: $("#dialogTitle"),
   closeDialogBtn: $("#closeDialogBtn"),
   resetFormBtn: $("#resetFormBtn"),
+  saveRecordBtn: $("#saveRecordBtn"),
   archiveBtn: $("#archiveBtn"),
   recordTypeSelect: $("#recordTypeSelect"),
   catalogCategorySelect: $("#catalogCategorySelect"),
@@ -165,6 +166,7 @@ const dom = {
   installmentFields: $("#installmentFields"),
   paymentDialog: $("#paymentDialog"),
   paymentForm: $("#paymentForm"),
+  savePaymentBtn: $("#savePaymentBtn"),
   paymentSubscriptionSelect: $("#paymentSubscriptionSelect"),
   closePaymentDialogBtn: $("#closePaymentDialogBtn"),
   recordDetailDialog: $("#recordDetailDialog"),
@@ -373,7 +375,9 @@ function bindEvents() {
   dom.resetFormBtn.addEventListener("click", resetRecordForm);
   dom.archiveBtn.addEventListener("click", handleArchiveCurrentRecord);
   dom.subscriptionForm.addEventListener("submit", handleRecordSubmit);
+  dom.saveRecordBtn.addEventListener("click", handleRecordSaveClick);
   dom.paymentForm.addEventListener("submit", handlePaymentSubmit);
+  dom.savePaymentBtn.addEventListener("click", handlePaymentSaveClick);
   dom.settingsForm.addEventListener("submit", handleSettingsSubmit);
   dom.refreshRatesBtn.addEventListener("click", refreshLiveRates);
   dom.requestNotificationBtn.addEventListener("click", requestNotificationPermission);
@@ -627,6 +631,7 @@ function openRecordDialog(record = null) {
   state.editingId = record?.id || null;
   dom.dialogTitle.textContent = record ? "Kaydı Düzenle" : "Yeni Kayıt";
   dom.archiveBtn.classList.toggle("hidden", !record);
+  setButtonBusy(dom.saveRecordBtn, false);
   resetRecordForm();
 
   if (record) {
@@ -659,6 +664,7 @@ function openPaymentDialog(recordId = null) {
     showToast("Ödeme kaydı için önce bir kayıt eklemelisin.");
     return;
   }
+  setButtonBusy(dom.savePaymentBtn, false);
   dom.paymentForm.reset();
   state.activePaymentSubscriptionId = recordId || state.records[0].id;
   populatePaymentSubscriptions();
@@ -793,6 +799,14 @@ function handleColorPresetClick(event) {
   updateDetailPreview();
 }
 
+function handleRecordSaveClick() {
+  void submitRecordForm();
+}
+
+function handlePaymentSaveClick() {
+  void submitPaymentForm();
+}
+
 function getFieldValue(name, form = dom.subscriptionForm) {
   return form.elements.namedItem(name)?.value || "";
 }
@@ -805,6 +819,7 @@ function syncFormMode() {
   toggleGroupDisabled(dom.installmentFields, !installmentMode);
   populateCatalogCategorySelect();
   populateCatalogSelect();
+  applyCatalogCategoryToActiveForm();
   syncNativeControls();
   updateDetailPreview();
 }
@@ -813,6 +828,18 @@ function toggleGroupDisabled(group, disabled) {
   group.querySelectorAll("input, select, textarea, button").forEach((field) => {
     field.disabled = disabled;
   });
+}
+
+function applyCatalogCategoryToActiveForm() {
+  const selectedCategory = dom.catalogCategorySelect.value || "";
+  if (!selectedCategory) {
+    return;
+  }
+  if (dom.recordTypeSelect.value === "installment") {
+    setFieldValue("installmentCategory", selectedCategory);
+  } else {
+    setFieldValue("category", selectedCategory);
+  }
 }
 
 function updateDetailPreview() {
@@ -870,6 +897,14 @@ function buildInstallmentPreviewLine() {
 
 async function handleRecordSubmit(event) {
   event.preventDefault();
+  await submitRecordForm();
+}
+
+async function submitRecordForm() {
+  if (dom.saveRecordBtn.disabled) {
+    return false;
+  }
+  setButtonBusy(dom.saveRecordBtn, true, "Kaydediliyor...");
   try {
     const formData = new FormData(dom.subscriptionForm);
     const existing = state.records.find((item) => item.id === state.editingId);
@@ -910,6 +945,7 @@ async function handleRecordSubmit(event) {
       });
     } else {
       const rawPrice = formData.get("price");
+      const category = normalizeText(formData.get("category")) || dom.catalogCategorySelect.value || "";
       const nextPriceHistory = [...(existing?.priceHistory || [])];
       if (
         existing &&
@@ -934,7 +970,7 @@ async function handleRecordSubmit(event) {
         billingCycle: formData.get("billingCycle"),
         nextPaymentDate: formData.get("nextPaymentDate"),
         trialEndDate: formData.get("trialEndDate") || "",
-        category: normalizeText(formData.get("category")),
+        category,
         paymentMethod: normalizeText(formData.get("paymentMethod")),
         status: formData.get("status"),
         icon: normalizeText(formData.get("icon")).slice(0, 2) || guessMonogram(formData.get("name")),
@@ -950,7 +986,7 @@ async function handleRecordSubmit(event) {
       });
       if (!record.name || rawPrice === "" || !record.category || !record.nextPaymentDate) {
         showToast("Lütfen isim, ücret, kategori ve sonraki ödeme tarihini doldur.");
-        return;
+        return false;
       }
     }
 
@@ -962,9 +998,13 @@ async function handleRecordSubmit(event) {
     syncSheetState();
     showToast(existing ? "Kayıt güncellendi." : "Kayıt eklendi.");
     await maybeResolveExpiredTrials();
+    return true;
   } catch (error) {
     console.error(error);
     showToast("Kayıt kaydedilemedi. Lütfen tekrar dene.");
+    return false;
+  } finally {
+    setButtonBusy(dom.saveRecordBtn, false);
   }
 }
 
@@ -1020,39 +1060,58 @@ async function handleDeleteRecord(record) {
 
 async function handlePaymentSubmit(event) {
   event.preventDefault();
+  await submitPaymentForm();
+}
+
+async function submitPaymentForm() {
+  if (dom.savePaymentBtn.disabled) {
+    return false;
+  }
+  setButtonBusy(dom.savePaymentBtn, true, "Kaydediliyor...");
   const formData = new FormData(dom.paymentForm);
   const recordId = formData.get("subscriptionId");
   const record = state.records.find((item) => item.id === recordId);
   if (!record) {
     showToast("Geçerli kayıt seçilemedi.");
-    return;
+    setButtonBusy(dom.savePaymentBtn, false);
+    return false;
   }
   if (!formData.get("paidAt") || formData.get("amount") === "") {
     showToast("Ödeme tarihi ve tutarı zorunlu.");
-    return;
+    setButtonBusy(dom.savePaymentBtn, false);
+    return false;
   }
-  const amount = Number(formData.get("amount"));
-  const currency = formData.get("currency");
-  const payment = {
-    id: createId("pay"),
-    subscriptionId: recordId,
-    paidAt: formData.get("paidAt"),
-    amount,
-    currency,
-    tlAmountAtPayment: convertToTl(amount, currency),
-    note: normalizeText(formData.get("note"))
-  };
-  await putRecord("payments", payment);
-  if (!isInstallment(record)) {
-    record.nextPaymentDate = addCycle(payment.paidAt, record.billingCycle);
-    record.updatedAt = new Date().toISOString();
-    await putRecord("subscriptions", record);
+  try {
+    const amount = Number(formData.get("amount"));
+    const currency = formData.get("currency");
+    const payment = {
+      id: createId("pay"),
+      subscriptionId: recordId,
+      paidAt: formData.get("paidAt"),
+      amount,
+      currency,
+      tlAmountAtPayment: convertToTl(amount, currency),
+      note: normalizeText(formData.get("note"))
+    };
+    await putRecord("payments", payment);
+    if (!isInstallment(record)) {
+      record.nextPaymentDate = addCycle(payment.paidAt, record.billingCycle);
+      record.updatedAt = new Date().toISOString();
+      await putRecord("subscriptions", record);
+    }
+    await loadState();
+    renderAll();
+    dom.paymentDialog.close();
+    syncSheetState();
+    showToast("Ödeme kaydı eklendi.");
+    return true;
+  } catch (error) {
+    console.error(error);
+    showToast("Ödeme kaydedilemedi. Lütfen tekrar dene.");
+    return false;
+  } finally {
+    setButtonBusy(dom.savePaymentBtn, false);
   }
-  await loadState();
-  renderAll();
-  dom.paymentDialog.close();
-  syncSheetState();
-  showToast("Ödeme kaydı eklendi.");
 }
 
 async function handleSettingsSubmit(event) {
@@ -1155,6 +1214,7 @@ function handleCatalogSelection() {
 
 function handleCatalogCategoryChange() {
   dom.catalogSelect.value = "";
+  applyCatalogCategoryToActiveForm();
   populateCatalogSelect();
   syncNativeControls();
 }
@@ -2664,82 +2724,83 @@ function guessMonogram(value) {
 }
 
 const KNOWN_LOGO_ASSETS = {
-  netflix: "./assets/logos/netflix.svg",
-  spotify: "./assets/logos/spotify.svg",
-  spotifypremiumbireysel: "./assets/logos/spotify.svg",
-  spotifypremiumduo: "./assets/logos/spotify.svg",
-  spotifypremiumaile: "./assets/logos/spotify.svg",
-  spotifypremiumogrenci: "./assets/logos/spotify.svg",
-  youtubepremium: "./assets/logos/youtube-premium.svg",
-  disney: "./assets/logos/disney-plus.svg",
-  disneyplus: "./assets/logos/disney-plus.svg",
-  amazonprime: "./assets/logos/amazon-prime.svg",
-  applemusic: "./assets/logos/apple-music.svg",
-  icloud: "./assets/logos/icloud.svg",
-  icloudplus: "./assets/logos/icloud.svg",
+  netflix: "./assets/logos/netflix.png",
+  spotify: "./assets/logos/spotify.png",
+  spotifypremiumbireysel: "./assets/logos/spotify.png",
+  spotifypremiumduo: "./assets/logos/spotify.png",
+  spotifypremiumaile: "./assets/logos/spotify.png",
+  spotifypremiumogrenci: "./assets/logos/spotify.png",
+  youtubepremium: "./assets/logos/youtube-premium.png",
+  disney: "./assets/logos/disney-plus.png",
+  disneyplus: "./assets/logos/disney-plus.png",
+  amazonprime: "./assets/logos/amazon-prime.png",
+  applemusic: "./assets/logos/apple-music.png",
+  icloud: "./assets/logos/icloud.png",
+  icloudplus: "./assets/logos/icloud.png",
   googleone: "./assets/logos/google-one.svg",
   googleonebasic: "./assets/logos/google-one.svg",
   googleonestandard: "./assets/logos/google-one.svg",
   googleonepremium: "./assets/logos/google-one.svg",
-  notion: "./assets/logos/notion.svg",
-  notionplus: "./assets/logos/notion.svg",
+  notion: "./assets/logos/notion.png",
+  notionplus: "./assets/logos/notion.png",
   chatgpt: "./assets/logos/chatgpt.png",
   chatgptgo: "./assets/logos/chatgpt.png",
   chatgptplus: "./assets/logos/chatgpt.png",
   chatgptpro: "./assets/logos/chatgpt.png",
   chatgptbusiness: "./assets/logos/chatgpt.png",
-  claudepro: "./assets/logos/claude.svg",
-  claudemax5x: "./assets/logos/claude.svg",
-  claudemax20x: "./assets/logos/claude.svg",
-  claudeteam: "./assets/logos/claude.svg",
-  gemini: "./assets/logos/gemini.svg",
-  googleaipro: "./assets/logos/gemini.svg",
-  googleaiultra: "./assets/logos/gemini.svg",
-  figmaprofessional: "./assets/logos/figma.svg",
-  canvapro: "./assets/logos/canva.svg",
-  adobecreativecloud: "./assets/logos/adobe.svg",
-  exxen: "./assets/logos/exxen.svg",
-  blutv: "./assets/logos/blutv.svg",
-  mubi: "./assets/logos/mubi.svg",
-  xboxgamepass: "./assets/logos/xbox.svg",
-  xboxgamepassultimate: "./assets/logos/xbox.svg",
-  xboxgamepasspc: "./assets/logos/xbox.svg",
-  xbox: "./assets/logos/xbox.svg",
-  playstationplus: "./assets/logos/playstation.svg",
+  claude: "./assets/logos/claude.png",
+  claudepro: "./assets/logos/claude.png",
+  claudemax5x: "./assets/logos/claude.png",
+  claudemax20x: "./assets/logos/claude.png",
+  claudeteam: "./assets/logos/claude.png",
+  gemini: "./assets/logos/gemini.png",
+  googleaipro: "./assets/logos/gemini.png",
+  googleaiultra: "./assets/logos/gemini.png",
+  figmaprofessional: "./assets/logos/figma.png",
+  canvapro: "./assets/logos/canva.png",
+  adobecreativecloud: "./assets/logos/adobe.png",
+  exxen: "./assets/logos/exxen.png",
+  blutv: "./assets/logos/blutv.png",
+  mubi: "./assets/logos/mubi.png",
+  xboxgamepass: "./assets/logos/xbox.png",
+  xboxgamepassultimate: "./assets/logos/xbox.png",
+  xboxgamepasspc: "./assets/logos/xbox.png",
+  xbox: "./assets/logos/xbox.png",
+  playstationplus: "./assets/logos/playstation.png",
   githubcopilot: "./assets/logos/github-copilot.svg",
-  bitwardenpremium: "./assets/logos/bitwarden.svg",
-  "1password": "./assets/logos/onepassword.svg",
-  todoistpro: "./assets/logos/todoist.svg",
-  mediummember: "./assets/logos/medium.svg",
-  patreon: "./assets/logos/patreon.svg",
-  microsoft365: "./assets/logos/microsoft365.svg",
-  microsoft365personal: "./assets/logos/microsoft365.svg",
-  linkedin: "./assets/logos/linkedin.svg",
-  linkedinpremiumcareer: "./assets/logos/linkedin.svg",
-  linkedinpremiumbusiness: "./assets/logos/linkedin.svg",
-  linkedinpremiumduocareer: "./assets/logos/linkedin.svg",
-  linkedinpremiumduobusiness: "./assets/logos/linkedin.svg",
-  linkedinpremiumallinone: "./assets/logos/linkedin.svg",
-  linkedinpremiumcompanypage: "./assets/logos/linkedin.svg",
-  trendyol: "./assets/logos/trendyol.svg",
-  trendyolplus: "./assets/logos/trendyol.svg",
+  bitwardenpremium: "./assets/logos/bitwarden.png",
+  "1password": "./assets/logos/onepassword.png",
+  todoistpro: "./assets/logos/todoist.png",
+  mediummember: "./assets/logos/medium.png",
+  patreon: "./assets/logos/patreon.png",
+  microsoft365: "./assets/logos/microsoft365.png",
+  microsoft365personal: "./assets/logos/microsoft365.png",
+  linkedin: "./assets/logos/linkedin.png",
+  linkedinpremiumcareer: "./assets/logos/linkedin.png",
+  linkedinpremiumbusiness: "./assets/logos/linkedin.png",
+  linkedinpremiumduocareer: "./assets/logos/linkedin.png",
+  linkedinpremiumduobusiness: "./assets/logos/linkedin.png",
+  linkedinpremiumallinone: "./assets/logos/linkedin.png",
+  linkedinpremiumcompanypage: "./assets/logos/linkedin.png",
+  trendyol: "./assets/logos/trendyol.png",
+  trendyolplus: "./assets/logos/trendyol.png",
   hepsiburada: "./assets/logos/hepsiburada.svg",
   hepsiburadapremium: "./assets/logos/hepsiburada.svg",
-  ciceksepeti: "./assets/logos/ciceksepeti.svg",
-  getir: "./assets/logos/getir.svg",
-  yemeksepeti: "./assets/logos/yemeksepeti.svg",
-  teknosa: "./assets/logos/teknosa.svg",
-  mediamarkt: "./assets/logos/mediamarkt.svg",
-  a101: "./assets/logos/a101.svg",
-  migros: "./assets/logos/migros.svg",
-  pazarama: "./assets/logos/pazarama.svg",
-  boyner: "./assets/logos/boyner.svg",
+  ciceksepeti: "./assets/logos/ciceksepeti.png",
+  getir: "./assets/logos/getir.png",
+  yemeksepeti: "./assets/logos/yemeksepeti.png",
+  teknosa: "./assets/logos/teknosa.png",
+  mediamarkt: "./assets/logos/mediamarkt.png",
+  a101: "./assets/logos/a101.png",
+  migros: "./assets/logos/migros.png",
+  pazarama: "./assets/logos/pazarama.png",
+  boyner: "./assets/logos/boyner.png",
   lcwaikiki: "./assets/logos/lcwaikiki.svg",
-  defacto: "./assets/logos/defacto.svg",
-  amazonturkiye: "./assets/logos/amazon-tr.svg",
-  n11: "./assets/logos/n11.svg",
-  vodafone: "./assets/logos/vodafone.svg",
-  vodafonefaturalihat: "./assets/logos/vodafone.svg",
+  defacto: "./assets/logos/defacto.png",
+  amazonturkiye: "./assets/logos/amazon-tr.png",
+  n11: "./assets/logos/n11.png",
+  vodafone: "./assets/logos/vodafone.png",
+  vodafonefaturalihat: "./assets/logos/vodafone.png",
   turktelekom: "./assets/logos/turktelekom.svg",
   turktelekomfaturalihat: "./assets/logos/turktelekom.svg",
   turkcell: "./assets/logos/turkcell.svg",
@@ -2889,6 +2950,18 @@ function syncColorPresetStates() {
       button.classList.toggle("is-active", button.dataset.colorValue.toLowerCase() === currentValue);
     });
   });
+}
+
+function setButtonBusy(button, busy, busyLabel = "Kaydediliyor...") {
+  if (!button) {
+    return;
+  }
+  if (!button.dataset.defaultLabel) {
+    button.dataset.defaultLabel = button.textContent.trim();
+  }
+  button.disabled = busy;
+  button.classList.toggle("is-busy", busy);
+  button.textContent = busy ? busyLabel : button.dataset.defaultLabel;
 }
 
 function getEmptyStateMarkup(icon, title, description) {

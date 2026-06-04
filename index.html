@@ -406,7 +406,7 @@
     </div>
 
     <dialog id="subscriptionDialog" class="app-dialog">
-      <form id="subscriptionForm" class="dialog-form" method="dialog" novalidate>
+      <form id="subscriptionForm" class="dialog-form" novalidate>
         <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="dialog-header">
           <div>
@@ -643,13 +643,13 @@
         <div class="dialog-actions">
           <button id="archiveBtn" class="danger-button hidden" type="button">Arşive Taşı</button>
           <button class="ghost-button" type="button" id="resetFormBtn">Temizle</button>
-          <button class="primary-button" type="submit">Kaydet</button>
+          <button id="saveRecordBtn" class="primary-button" type="button">Kaydet</button>
         </div>
       </form>
     </dialog>
 
     <dialog id="paymentDialog" class="app-dialog">
-      <form id="paymentForm" class="dialog-form narrow" method="dialog" novalidate>
+      <form id="paymentForm" class="dialog-form narrow" novalidate>
         <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="dialog-header">
           <div>
@@ -695,7 +695,7 @@
         </div>
 
         <div class="dialog-actions">
-          <button class="primary-button" type="submit">Ödeme Kaydet</button>
+          <button id="savePaymentBtn" class="primary-button" type="button">Ödeme Kaydet</button>
         </div>
       </form>
     </dialog>
